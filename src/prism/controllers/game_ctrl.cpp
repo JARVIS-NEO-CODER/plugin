@@ -4,7 +4,7 @@
 #include "patterns.hpp"
 #include <stdexcept>
 
-namespace ets2_la_plugin::prism
+namespace ets2la_plugin::prism
 {
     uint32_t game_ctrl_u::gps_manager_offset = 0;
 

@@ -28,15 +28,18 @@
 #include "prism/vehicles/game_trailer_actor.hpp"
 #include "prism/game_actor.hpp"
 
+#include "processing/traffic.hpp"
+
 #include <ctime>
 #include <cmath>
 
 #include <vector>
+#include <chrono>
 #include <algorithm>
 #include <array>
 #include <map>
 
-namespace ets2_la_plugin
+namespace ets2la_plugin
 {
     CCore *CCore::g_instance = nullptr;
 
@@ -71,7 +74,6 @@ namespace ets2_la_plugin
         const auto *current_camera = camera_manager->cameras[camera_manager->current_camera];
         if (current_camera != nullptr)
         {
-            // get all wanted data from current camera
             CameraMemData data;
             data.fov = current_camera->camera_fov;
             data.pos_x = current_camera->placement.pos.x;
@@ -84,505 +86,25 @@ namespace ets2_la_plugin
             data.qy = current_camera->placement.rot.y;
             data.qz = current_camera->placement.rot.z;
 
+            data.m11 = current_camera->projection_matrix.m11;
+            data.m12 = current_camera->projection_matrix.m12;
+            data.m13 = current_camera->projection_matrix.m13;
+            data.m14 = current_camera->projection_matrix.m14;
+            data.m21 = current_camera->projection_matrix.m21;
+            data.m22 = current_camera->projection_matrix.m22;
+            data.m23 = current_camera->projection_matrix.m23;
+            data.m24 = current_camera->projection_matrix.m24;   
+            data.m31 = current_camera->projection_matrix.m31;
+            data.m32 = current_camera->projection_matrix.m32;
+            data.m33 = current_camera->projection_matrix.m33;
+            data.m34 = current_camera->projection_matrix.m34;
+            data.m41 = current_camera->projection_matrix.m41;
+            data.m42 = current_camera->projection_matrix.m42;
+            data.m43 = current_camera->projection_matrix.m43;
+            data.m44 = current_camera->projection_matrix.m44;
+
             this->memory_manager_->write_camera_mem(data);
         }
-    }
-
-    void CCore::get_ai_traffic_data() const
-    {
-        auto* game_traffic = prism::game_traffic_u::get();
-
-        if (game_traffic == nullptr)
-            return;
-
-        // our truck position from the SDK telemetry
-        const auto truck_pos = this->truck_pos;
-        const auto truck_x = truck_pos.position.x;
-        const auto truck_y = truck_pos.position.y;
-        const auto truck_z = truck_pos.position.z;
-
-        struct ai_vehicle_sort {
-            const prism::spawned_vehicle_t* ai_vehicle;
-            float distance;
-            int id;
-        };
-
-        std::vector<ai_vehicle_sort> sorted_ai_vehicles;
-
-        // Static map to store unique IDs for each vehicle
-        static std::map<const prism::spawned_vehicle_t*, int> vehicle_uids;
-        static int next_vehicle_id = 0;
-
-        int i = 0;
-        for (const auto& ai_vehicle : game_traffic->ai_vehicles)
-        {
-            if (ai_vehicle.vehicle == nullptr || ai_vehicle.vehicle->traffic_vehicle == nullptr || ai_vehicle.vehicle->physics_data == nullptr)
-                continue;
-
-            const auto ai_x = ai_vehicle.vehicle->placement.cx * 512 + ai_vehicle.vehicle->placement.pos.x;
-            const auto ai_y = ai_vehicle.vehicle->placement.pos.y;
-            const auto ai_z = ai_vehicle.vehicle->placement.cz * 512 + ai_vehicle.vehicle->placement.pos.z;
-
-            const float dx = ai_x - truck_x;
-            const float dy = ai_y - truck_y;
-            const float dz = ai_z - truck_z;
-            const float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
-
-            // Assign a persistent unique ID if the vehicle doesn't already have one
-            if (vehicle_uids.find(&ai_vehicle) == vehicle_uids.end()) {
-                vehicle_uids[&ai_vehicle] = next_vehicle_id++;
-            }
-
-            sorted_ai_vehicles.push_back({ &ai_vehicle, distance, vehicle_uids[&ai_vehicle] });
-            i++;
-        }
-
-        // Sort the vector based on the distance
-        std::sort(sorted_ai_vehicles.begin(), sorted_ai_vehicles.end(), [](const ai_vehicle_sort& a, const ai_vehicle_sort& b) {
-            return a.distance < b.distance;
-        });
-
-        std::array<TrafficVehicleObject, 40> vehicles = {};
-
-        i = 0;
-        for (const auto& vehicle_data : sorted_ai_vehicles)
-        {
-            if (i >= 40)
-            {
-                break;
-            }
-
-            TrafficVehicleObject vehicle_object = {};
-            TrafficVehicle& vehicle = vehicle_object.vehicle;
-            const auto& ai_vehicle = *vehicle_data.ai_vehicle;
-
-            vehicle.is_tmp = false;
-            vehicle.is_trailer = false;
-
-            vehicle.x = ai_vehicle.vehicle->placement.cx * 512 + ai_vehicle.vehicle->placement.pos.x;
-            vehicle.y = ai_vehicle.vehicle->placement.pos.y;
-            vehicle.z = ai_vehicle.vehicle->placement.cz * 512 + ai_vehicle.vehicle->placement.pos.z;
-
-            vehicle.qw = ai_vehicle.vehicle->placement.rot.w;
-            vehicle.qx = ai_vehicle.vehicle->placement.rot.x;
-            vehicle.qy = ai_vehicle.vehicle->placement.rot.y;
-            vehicle.qz = ai_vehicle.vehicle->placement.rot.z;
-
-            vehicle.width = ai_vehicle.vehicle->physics_data->bounding_box.x;
-            vehicle.height = ai_vehicle.vehicle->physics_data->bounding_box.y;
-            vehicle.length = ai_vehicle.vehicle->physics_data->bounding_box.z;
-
-            vehicle.speed = ai_vehicle.vehicle->physics_data->speed;
-            vehicle.acceleration = ai_vehicle.vehicle->physics_data->acceleration;
-
-            vehicle.trailer_count = 0;
-
-            vehicle.id = vehicle_data.id; // Persistent unique ID
-
-            const auto* trailer = ai_vehicle.vehicle->trailer;
-            while (trailer != nullptr)
-            {
-                if (trailer->physics_data == nullptr)
-                {
-                    break;
-                }
-
-                if (vehicle.trailer_count >= 3)
-                {
-                    break;
-                }
-
-                TrafficTrailer& trailer_data = vehicle_object.trailers[vehicle.trailer_count];
-
-                trailer_data.x = trailer->placement.cx * 512 + trailer->placement.pos.x;
-                trailer_data.y = trailer->placement.pos.y;
-                trailer_data.z = trailer->placement.cz * 512 + trailer->placement.pos.z;
-
-                trailer_data.qw = trailer->placement.rot.w;
-                trailer_data.qx = trailer->placement.rot.x;
-                trailer_data.qy = trailer->placement.rot.y;
-                trailer_data.qz = trailer->placement.rot.z;
-
-                trailer_data.width = trailer->physics_data->bounding_box.x;
-                trailer_data.height = trailer->physics_data->bounding_box.y;
-                trailer_data.length = trailer->physics_data->bounding_box.z;
-
-                trailer = trailer->slave_trailer;
-
-                vehicle.trailer_count++;
-            }
-
-            vehicles[i] = vehicle_object;
-            i++;
-        }
-
-        TrafficMemData data = { vehicles };
-        this->memory_manager_->write_traffic_mem(data);
-    }
-
-    bool CCore::get_truckersmp_traffic_data() const
-    {
-        auto* game_ctrl = prism::game_ctrl_u::get();
-
-        struct mp_vehicle_sort {
-            const prism::game_physics_vehicle_u* truck;
-            prism::game_trailer_actor_u* trailers[3];
-            int trailer_count;
-            float distance;
-            int id;
-        };
-
-        if (game_ctrl == nullptr)
-        {
-            return false;
-        }
-
-        const auto truck_pos = this->truck_pos;
-        const auto truck_x = truck_pos.position.x;
-        const auto truck_y = truck_pos.position.y;
-        const auto truck_z = truck_pos.position.z;
-
-        std::vector<mp_vehicle_sort> sorted;
-        static prism::unit_descriptor_t *stored_game_trailer_actor_unit_descriptor = nullptr;
-
-        // Static map for unique IDs
-        static std::map<const void*, int> mp_vehicle_uids;
-        static int next_mp_vehicle_id = 1000; // From 1000 to differentiate from AI traffic
-
-        const auto* vehicles_list = game_ctrl->get_some_nearby_non_ai_vehicles_list();
-        if (vehicles_list == nullptr)
-        {
-            return false; // No vehicles list available
-        }
-
-        auto* node = vehicles_list->begin;
-        while(node->item != vehicles_list->empty_item)
-        {
-            const auto unit_descriptor = node->item->get_unit_descriptor();
-            if (stored_game_trailer_actor_unit_descriptor == nullptr)
-            {
-                // check if the node item is of type 'game_trailer_actor' and store the address of the unit descriptor if it is
-                if (strcmp(*unit_descriptor->p_class_name, "game_trailer_actor") == 0)
-                {
-                    stored_game_trailer_actor_unit_descriptor = unit_descriptor;
-                }
-            }
-
-            const auto is_trailer = stored_game_trailer_actor_unit_descriptor == unit_descriptor;
-            // Unique ID if not already assigned
-            if (mp_vehicle_uids.find(node->item) == mp_vehicle_uids.end()) {
-                mp_vehicle_uids[node->item] = next_mp_vehicle_id++;
-            }
-            int id = mp_vehicle_uids[node->item];
-
-            if (is_trailer)
-            {
-                auto* trailer = static_cast<prism::game_trailer_actor_u *>(node->item);
-
-                if (sorted.size() == 0)
-                {
-                    node = node->next;
-                    continue;
-                }
-
-                // All data goes as like this:
-                // Vehicle -> Trailer -> Trailer -> Vehicle
-                // Get the latest parent vehicle
-                mp_vehicle_sort& sort_object = sorted.back();
-
-                while (trailer != nullptr)
-                {
-                    if(sort_object.trailer_count >= 3)
-                    {
-                        break;
-                    }
-                    sort_object.trailers[sort_object.trailer_count] = trailer;
-                    sort_object.trailer_count++;
-                    trailer = trailer->get_slave_trailer();
-                }
-            }
-            else
-            {
-                mp_vehicle_sort vehicle_data = {};
-
-                // Physics vehicle (placement, rotation, dimensions)
-                auto *truck = static_cast<const prism::game_physics_vehicle_u *>(node->item);
-                if (truck == nullptr)
-                {
-                    node = node->next;
-                    continue;
-                }
-
-                prism::placement_t truck_placement;
-                truck->get_physics_placement(&truck_placement);
-
-                float x = truck_placement.cx * 512 + truck_placement.pos.x;
-                float y = truck_placement.pos.y;
-                float z = truck_placement.cz * 512 + truck_placement.pos.z;
-
-                // Distance to player
-                const float dx = x - truck_x;
-                const float dy = y - truck_y;
-                const float dz = z - truck_z;
-                vehicle_data.distance = std::sqrt(dx * dx + dy * dy + dz * dz);
-
-                vehicle_data.id = id;
-                vehicle_data.truck = truck;
-                vehicle_data.trailer_count = 0;
-
-                sorted.push_back(vehicle_data);
-            }
-
-            node = node->next;
-        }
-
-        if (sorted.empty()) {
-            return false;
-        }
-
-        // Sort by distance
-        std::sort(sorted.begin(), sorted.end(),
-            [](const mp_vehicle_sort& a, const mp_vehicle_sort& b) {
-                return a.distance < b.distance;
-        });
-
-        // Create traffic objects and add to memory
-        TrafficMemData traffic_data = {};
-        int max_vehicles = 40;
-        int cur_count = 0;
-        for (mp_vehicle_sort mp_vehicle : sorted) {
-            if (cur_count >= max_vehicles) {
-                break;
-            }
-
-            TrafficVehicleObject vehicle_object = {};
-            TrafficVehicle& vehicle = vehicle_object.vehicle;
-
-            auto* truck = static_cast<const prism::game_physics_vehicle_u *>(mp_vehicle.truck);
-            prism::placement_t truck_placement;
-            truck->get_physics_placement(&truck_placement);
-
-            vehicle.x = truck_placement.cx * 512 + truck_placement.pos.x;
-            vehicle.y = truck_placement.pos.y;
-            vehicle.z = truck_placement.cz * 512 + truck_placement.pos.z;
-
-            vehicle.qw = truck_placement.rot.w;
-            vehicle.qx = truck_placement.rot.x;
-            vehicle.qy = truck_placement.rot.y;
-            vehicle.qz = truck_placement.rot.z;
-
-            vehicle.width = truck->dimensions.end.x - truck->dimensions.start.x;
-            vehicle.height = truck->dimensions.end.y - truck->dimensions.start.y;
-            vehicle.length = truck->dimensions.end.z - truck->dimensions.start.z;
-
-            vehicle.speed = 0.0f;
-            vehicle.acceleration = 0.0f;
-
-            // is_tmp is used to differentiate between AI and TMP vehicles on the client
-            // TMP vehicles don't have speed, and it has to be calculated at runtime
-            vehicle.is_tmp = true;
-            vehicle.is_trailer = false;
-
-            vehicle.id = mp_vehicle.id;
-            vehicle.trailer_count = mp_vehicle.trailer_count;
-
-            auto* trailers = mp_vehicle.trailers;
-            for (int i = 0; i < 3; i++)
-            {
-                if (trailers[i] != nullptr)
-                {
-                    TrafficTrailer trailer_data = {};
-
-                    prism::placement_t trailer_placement;
-                    trailers[i]->get_physics_placement(&trailer_placement);
-
-                    trailer_data.x = trailer_placement.cx * 512 + trailer_placement.pos.x;
-                    trailer_data.y = trailer_placement.pos.y;
-                    trailer_data.z = trailer_placement.cz * 512 + trailer_placement.pos.z;
-
-                    trailer_data.qw = trailer_placement.rot.w;
-                    trailer_data.qx = trailer_placement.rot.x;
-                    trailer_data.qy = trailer_placement.rot.y;
-                    trailer_data.qz = trailer_placement.rot.z;
-
-                    trailer_data.width = trailers[i]->dimensions.end.x - trailers[i]->dimensions.start.x;
-                    trailer_data.height = trailers[i]->dimensions.end.y - trailers[i]->dimensions.start.y;
-                    trailer_data.length = trailers[i]->dimensions.end.z - trailers[i]->dimensions.start.z;
-
-                    vehicle_object.trailers[i] = trailer_data;
-                }
-            }
-
-            traffic_data.vehicles[cur_count] = vehicle_object;
-            cur_count++;
-        }
-
-        if (cur_count > 0) {
-            // Write the data to memory
-            this->memory_manager_->write_traffic_mem(traffic_data);
-            return true;
-        }
-        return false;
-    }
-
-    void CCore::get_traffic_objects_data() const
-    {
-
-        struct TrafficObjectData
-        {
-            const prism::traffic_semaphore_actor_t *semaphore_actor;
-            float distance;
-            int id;
-        };
-
-        auto* base_ctrl = prism::base_ctrl_u::get();
-
-        if (base_ctrl == nullptr)
-            return;
-
-        const auto truck_pos = this->truck_pos;
-        const auto truck_x = truck_pos.position.x;
-        const auto truck_y = truck_pos.position.y;
-        const auto truck_z = truck_pos.position.z;
-
-        std::vector<TrafficObjectData> traffic_objects_with_distance;
-
-        auto* nearby_kdop_items = base_ctrl->get_nearby_kdop_items();
-
-        if ( nearby_kdop_items == nullptr )
-        {
-            return;
-        }
-
-        // Gather traffic lights and gates
-        for (const auto *kdop_item : *nearby_kdop_items )
-        {
-            if (kdop_item->item_type != 4) // we only want prefabs
-            {
-                if (kdop_item->item_type > 4)
-                {
-                    break; // items seem to be ordered by item type, so we can stop looping after going through all prefabs
-                }
-                continue;
-            }
-            const auto prefab_kdop_item = static_cast<const prism::prefab_item_t *>(kdop_item);
-
-            if (prefab_kdop_item->segment == nullptr)
-            {
-                continue;
-            }
-
-            for (const auto &semaphore_instance : prefab_kdop_item->segment->semaphore_instances)
-            {
-                if (semaphore_instance.actor == nullptr || semaphore_instance.actor->get_type() != 0x07) // we only want type 0x07 (traffic_semaphore_actor_t)
-                {
-                    continue;
-                }
-                const auto* semaphore_actor = static_cast<const prism::traffic_semaphore_actor_t*>(semaphore_instance.actor);
-
-                // Get distance
-                const float object_x = semaphore_actor->placement.pos.x + 512 * semaphore_actor->placement.cx;
-                const float object_y = semaphore_actor->placement.pos.y;
-                const float object_z = semaphore_actor->placement.pos.z + 512 * semaphore_actor->placement.cz;
-
-                const float dx = object_x - truck_x;
-                const float dy = object_y - truck_y;
-                const float dz = object_z - truck_z;
-                const float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
-
-                const int id = static_cast<int>(semaphore_instance.id);
-
-                traffic_objects_with_distance.push_back({semaphore_actor, distance, id});
-            }
-        }
-
-        auto* game_traffic = prism::game_traffic_u::get();
-
-        if (game_traffic != nullptr)
-        {
-            for (const auto* traffic_object : game_traffic->traffic_objects)
-            {
-                if (traffic_object->get_type() != 0x07)
-                {
-                    continue; // we only want type 0x07 (traffic_semaphore_actor_t)
-                }
-               const auto* semaphore_actor = static_cast<const prism::traffic_semaphore_actor_t*>(traffic_object);
-
-                // Get distance
-                const float object_x = semaphore_actor->placement.pos.x + 512 * semaphore_actor->placement.cx;
-                const float object_y = semaphore_actor->placement.pos.y;
-                const float object_z = semaphore_actor->placement.pos.z + 512 * semaphore_actor->placement.cz;
-
-                const float dx = object_x - truck_x;
-                const float dy = object_y - truck_y;
-                const float dz = object_z - truck_z;
-                const float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
-
-                traffic_objects_with_distance.push_back({semaphore_actor, distance, 0});
-            }
-        }
-
-        // Sort semaphores by distance
-        std::sort(traffic_objects_with_distance.begin(), traffic_objects_with_distance.end(), [](const TrafficObjectData& a, const TrafficObjectData& b) {
-            return a.distance < b.distance;
-        });
-
-        std::array<SemaphoreObject, 40> semaphores = {};
-
-        // Process the sorted traffic objects
-        int i = 0;
-        for (const auto& traffic_object_data : traffic_objects_with_distance)
-        {
-            if (i >= 40)
-            {
-                break;
-            }
-
-            const auto* semaphore_actor = traffic_object_data.semaphore_actor;
-            const float distance = traffic_object_data.distance;
-            const int id = traffic_object_data.id;
-
-            SemaphoreObject semaphore_object = {};
-            semaphore_object.x = semaphore_actor->placement.pos.x;
-            semaphore_object.y = semaphore_actor->placement.pos.y;
-            semaphore_object.z = semaphore_actor->placement.pos.z;
-            semaphore_object.cx = semaphore_actor->placement.cx;
-            semaphore_object.cz = semaphore_actor->placement.cz;
-            semaphore_object.qw = semaphore_actor->placement.rot.w;
-            semaphore_object.qx = semaphore_actor->placement.rot.x;
-            semaphore_object.qy = semaphore_actor->placement.rot.y;
-            semaphore_object.qz = semaphore_actor->placement.rot.z;
-            semaphore_object.id = id;
-
-            if (semaphore_actor->traffic_rule != nullptr && semaphore_actor->traffic_rule->get_type() == prism::traffic_light_t::ID)
-            {
-                const auto* traffic_light = static_cast<const prism::traffic_light_t*>(semaphore_actor->traffic_rule);
-
-                semaphore_object.type = 1; // 1 = traffic light
-                semaphore_object.time_remaining = traffic_light->state_time_remaining;
-                // 0 = off, 1 = orange_to_red, 2 = red, 4 = orange_to_green, 8 = green, 32 = sleep (blinking orange)
-                semaphore_object.state = traffic_light->state;
-            }
-            else // gates
-            {
-                // state // 0 = closing; 1 = closed; 3 = open; 2 = opening
-                semaphore_object.type = 2; // 2 = gate
-                semaphore_object.state = semaphore_actor->state;
-
-                if (semaphore_actor->animation_mode == 2)
-                {
-                    semaphore_object.time_remaining = semaphore_actor->open_time_remaining;
-                } else {
-                    semaphore_object.time_remaining = semaphore_actor->animation_time_elapsed;
-                }
-            }
-
-            semaphores[i] = semaphore_object;
-            i++;
-        }
-
-        SemaphoreMemData data = { semaphores };
-        this->memory_manager_->write_semaphore_mem(data);
     }
 
     void CCore::get_navigation_data() const
@@ -640,58 +162,125 @@ namespace ets2_la_plugin
         }
     }
 
-    void CCore::tick() const
+    void CCore::override_inputs() const
     {
-        int start_time = std::time(0);
-        this->get_camera_data();
-
-        // Try and get truckersmp traffic data first
-        if(!this->get_truckersmp_traffic_data())
-        {
-            // Then get normal AI traffic data
-            this->get_ai_traffic_data();
-        }
-
-        this->get_traffic_objects_data();
-        this->get_navigation_data();
-
-        // Get input data from the shared memory file
         InputMemData data = this->memory_manager_->read_input_mem();
 
-        auto should_override_steering = data.override_steering;
-        auto should_override_brake = data.override_brake;
-        auto should_override_throttle = data.override_throttle;
-        const auto custom_steering_angle = data.steering;
-        const auto custom_throttle_input = data.throttle;
-        const auto custom_brake_input = data.brake;
+        bool should_override_steering = data.override_steering;
+        bool should_override_acceleration = data.override_acceleration;
 
-        int timestamp = data.timestamp;
-        int current_time = std::time(0);
-        if (current_time - timestamp > 1) // Data is over a second old
+        double steering_timestamp = data.steering_timestamp;
+        double acceleration_timestamp = data.acceleration_timestamp;
+
+        float custom_steering_angle = data.steering;
+        float custom_acceleration = data.acceleration;
+
+        double current_time = std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
+        if (current_time - steering_timestamp > 0.2)
         {
             should_override_steering = false;
-            should_override_brake = false;
-            should_override_throttle = false;
+        }
+        if (current_time - acceleration_timestamp > 0.2)
+        {
+            should_override_acceleration = false;
         }
 
         auto* game_actor = prism::game_actor_u::get();
-
         if (game_actor != nullptr) {
             if (should_override_steering && game_actor->game_physics_vehicle != nullptr)
             {
+                if(!was_overriding_steering){
+                    was_overriding_steering = true;
+                    steering_start_time = current_time;
+                    this->info("controlling steering.");
+                }
+                double t = (current_time - steering_start_time) / 1.5; // 1.5s to fully take control
+                if (t < 1) {
+                    t = sin((t * 3.1415) / 2); // easeOutSine
+                    float cur = game_actor->game_physics_vehicle->get_steering_angle();
+                    custom_steering_angle = cur * (1 - t) + (custom_steering_angle * t); // lerp
+                }
                 game_actor->game_physics_vehicle->set_steering_angle(custom_steering_angle);
             }
-
-            if (should_override_throttle)
-            {
-                game_actor->set_throttle_input(custom_throttle_input);
+            else{
+                if(was_overriding_steering){
+                    was_overriding_steering = false;
+                    this->info("stopped controlling steering.");
+                }
             }
 
-            if (should_override_brake)
+            if (should_override_acceleration && game_actor->game_physics_vehicle != nullptr)
             {
-                game_actor->set_brake_input(custom_brake_input);
+                if (!was_overriding_acceleration) {
+                    was_overriding_acceleration = true;
+                    this->info("controlling acceleration.");
+                }
+
+                if (custom_acceleration > 0)
+                {
+                    game_actor->set_throttle_input(custom_acceleration);
+                    game_actor->set_brake_input(0.0f);
+                }
+                else
+                {
+                    game_actor->set_throttle_input(0.0f);
+                    game_actor->set_brake_input(-custom_acceleration);
+                }
+            }
+            else
+            {
+                if (was_overriding_acceleration) {
+                    was_overriding_acceleration = false;
+                    this->info("stopped controlling acceleration.");
+                    this->info("custom_acceleration: {}", custom_acceleration);
+                    this->info("timestamp: {}, current_time: {}, time_diff: {}", acceleration_timestamp, current_time, current_time - acceleration_timestamp);
+                }
             }
         }
+    }
+
+    void CCore::update_plugin_state() const
+    {
+        // "1.58.1" -> 15801
+        // It's easier to send an int than a string through shared mem.
+        int version = 0;
+        std::string version_str = VERSION;
+        try {
+            version_str.erase(std::remove(version_str.begin(), version_str.end(), '.'), version_str.end());
+            version = std::stoi(version_str);
+        }
+        catch (const std::exception& e) {
+            this->error("Error parsing plugin version: {}", e.what());
+            version = 0;
+        }
+
+        this->memory_manager_->write_state_mem(
+            PluginStateData{ version, was_overriding_steering, was_overriding_acceleration }
+        );
+    }
+
+    void CCore::tick() const
+    {
+        // Local\ETS2LACameraProps
+        this->get_camera_data();
+        
+        // Local\ETS2LATraffic
+        auto ai_vehicles = traffic_processor_->get_ai_traffic_data();
+        auto tmp_vehicles = traffic_processor_->get_truckersmp_traffic_data();
+        traffic_processor_->write_traffic_data(processor_traffic_data_t{ai_vehicles, tmp_vehicles}, memory_manager_, this->truck_pos);
+        
+        // Local\ETS2LASemaphore
+        auto traffic_objects = traffic_processor_->get_traffic_objects_data();
+        traffic_processor_->write_traffic_objects_data(traffic_objects, memory_manager_, this->truck_pos);
+        
+        // Local\ETS2LARoute
+        this->get_navigation_data();
+        
+        // Local\ETS2LAPluginInput
+        this->override_inputs();
+
+        // Local\ETS2LAPluginStatus
+        this->update_plugin_state();
     }
 
     bool CCore::scan_for_required_patterns()
@@ -803,8 +392,10 @@ namespace ets2_la_plugin
             return false;
         }
 
-        // Initialize memory manager
+        this->memory_manager_ = new CMemoryHandler(scs_log_);
         this->memory_manager_->init();
+
+        this->traffic_processor_ = new TrafficProcessor(scs_log_);
 
         if (this->init_params_->register_for_event(SCS_TELEMETRY_EVENT_frame_end, telemetry_tick, nullptr) != SCS_RESULT_ok)
         {
@@ -818,5 +409,6 @@ namespace ets2_la_plugin
     void CCore::destroy()
     {
         delete this->memory_manager_;
+        delete this->traffic_processor_;
     }
 }

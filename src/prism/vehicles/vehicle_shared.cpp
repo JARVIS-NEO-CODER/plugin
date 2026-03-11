@@ -3,7 +3,7 @@
 #include "memory/memory_utils.hpp"
 #include "patterns.hpp"
 
-namespace ets2_la_plugin::prism
+namespace ets2la_plugin::prism
 {
     uint32_t vehicle_shared_u::steering_angle_offset = 0;
 
@@ -32,5 +32,15 @@ namespace ets2_la_plugin::prism
             new_steering_value;
 
         return true;
+    }
+
+    float vehicle_shared_u::get_steering_angle()
+    {
+        if ( vehicle_shared_u::steering_angle_offset == 0 )
+        {
+            return 0.0f;
+        }
+
+        return *reinterpret_cast< float* >( reinterpret_cast< char* >( this ) + vehicle_shared_u::steering_angle_offset );
     }
 }

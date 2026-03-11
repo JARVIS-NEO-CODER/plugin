@@ -5,7 +5,7 @@
 #include "prism/input/input_mix.hpp"
 #include <stdexcept>
 
-namespace ets2_la_plugin::prism
+namespace ets2la_plugin::prism
 {
     uint32_t game_actor_u::steering_input_offset = 0;
     uint32_t game_actor_u::throttle_input_offset = 0;

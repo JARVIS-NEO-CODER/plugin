@@ -1,6 +1,6 @@
 #pragma once
 
-namespace ets2_la_plugin::patterns
+namespace ets2la_plugin::patterns
 {
     // 48 8b 05 ? ? ? ? 48 8b ? 48 8b 49 ? 48 8b 80
     inline constexpr auto base_ctrl =

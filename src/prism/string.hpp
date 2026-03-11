@@ -2,7 +2,7 @@
 #include <cstdint>
 
 #pragma pack(push, 1)
-namespace ets2_la_plugin::prism
+namespace ets2la_plugin::prism
 {
     class string_dyn_t;
 

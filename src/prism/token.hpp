@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 
-namespace ets2_la_plugin::prism
+namespace ets2la_plugin::prism
 {
     constexpr int i_num_letters = 38;
     constexpr char psz_letters[ i_num_letters ] = {

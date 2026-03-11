@@ -6,7 +6,7 @@
 
 #pragma pack( push, 1 )
 
-namespace ets2_la_plugin::prism
+namespace ets2la_plugin::prism
 {
     // Size: 0x0028
     class input_object_t

@@ -4,7 +4,7 @@
 
 #pragma pack( push, 1 )
 
-namespace ets2_la_plugin::prism
+namespace ets2la_plugin::prism
 {
     class traffic_u : public unit_t // Size: 0x05D8
     {

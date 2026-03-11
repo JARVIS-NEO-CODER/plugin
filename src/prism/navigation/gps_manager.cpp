@@ -2,7 +2,7 @@
 #include "gps_manager.hpp"
 #include "prism/controllers/game_ctrl.hpp"
 
-namespace ets2_la_plugin::prism
+namespace ets2la_plugin::prism
 {
     gps_manager_t* gps_manager_t::get()
     {

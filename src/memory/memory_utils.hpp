@@ -4,7 +4,7 @@
 
 #include "memory_scan.hpp"
 
-namespace ets2_la_plugin::memory
+namespace ets2la_plugin::memory
 {
     inline uint64_t get_address_for_pattern( const char* pattern, const uint64_t offset = 0 )
     {

@@ -2,14 +2,14 @@
 #include "core.hpp"
 #include <sstream>
 
-namespace ets2_la_plugin
+namespace ets2la_plugin
 {
     CMemoryHandler::CMemoryHandler(scs_log_t scs_log) : scs_log_(scs_log),
-        input_h_map_file(NULL),
-        camera_h_map_file(NULL),
-        traffic_h_map_file(NULL),
-        semaphore_h_map_file(NULL),
-        route_h_map_file(NULL)
+        input_file(NULL),
+        camera_file(NULL),
+        traffic_file(NULL),
+        semaphore_file(NULL),
+        route_file(NULL)
     {
     }
 
@@ -20,63 +20,68 @@ namespace ets2_la_plugin
 
     bool CMemoryHandler::init()
     {
-        this->initialize_memory_file(const_cast<wchar_t*>(input_mem_name), L"fbfbfbi", input_h_map_file);
-        this->initialize_memory_file(const_cast<wchar_t*>(camera_mem_name), L"ffffssffff", camera_h_map_file);
-        this->create_traffic_memory();
-        this->create_semaphore_memory();
-        this->create_route_memory();
+        this->initialize_memory_file(const_cast<wchar_t*>(state_mem_name), L"ibb", state_file);
+        this->initialize_memory_file(const_cast<wchar_t*>(input_mem_name), L"fbdfbd", input_file);
+        this->initialize_memory_file(const_cast<wchar_t*>(camera_mem_name), L"ffffssffffffffffffffffffff", camera_file);
+        this->initialize_memory_file_multiple(const_cast<wchar_t*>(traffic_mem_name),
+            L"ffffffffffffssbbffffffffffffffffffffffffffffff", 
+            40, traffic_file
+        );
+        this->initialize_memory_file_multiple(const_cast<wchar_t*>(semaphore_mem_name), L"fffssffffifii", 40, semaphore_file);
+        this->initialize_memory_file_multiple(const_cast<wchar_t*>(route_mem_name), L"lff", 6000, route_file);
         
         return true;
     }
 
     void CMemoryHandler::destroy()
     {
-        // Close all handles
-        if (input_h_map_file != NULL) {
-            CloseHandle(input_h_map_file);
-            input_h_map_file = NULL;
+        if (input_file != NULL) {
+            CloseHandle(input_file);
+            input_file = NULL;
         }
         
-        if (camera_h_map_file != NULL) {
-            CloseHandle(camera_h_map_file);
-            camera_h_map_file = NULL;
+        if (camera_file != NULL) {
+            CloseHandle(camera_file);
+            camera_file = NULL;
         }
         
-        if (traffic_h_map_file != NULL) {
-            CloseHandle(traffic_h_map_file);
-            traffic_h_map_file = NULL;
+        if (traffic_file != NULL) {
+            CloseHandle(traffic_file);
+            traffic_file = NULL;
         }
         
-        if (semaphore_h_map_file != NULL) {
-            CloseHandle(semaphore_h_map_file);
-            semaphore_h_map_file = NULL;
+        if (semaphore_file != NULL) {
+            CloseHandle(semaphore_file);
+            semaphore_file = NULL;
         }
         
-        if (route_h_map_file != NULL) {
-            CloseHandle(route_h_map_file);
-            route_h_map_file = NULL;
+        if (route_file != NULL) {
+            CloseHandle(route_file);
+            route_file = NULL;
         }
     }
 
-    // Initialize a shared memory file.
-    // format:
-    // f - float
-    // b - bool
-    // i - int
-    // s - short
-    // l - long long
-    void CMemoryHandler::initialize_memory_file(wchar_t* file_name, wchar_t* format, HANDLE& output_h_map_file) const {
+    // This is used to boot up the shared memory file. It creates a file mapping
+    // based on the format below.
+    // f - float      (4 bytes)
+    // b - bool       (1 byte)
+    // i - int        (4 bytes)
+    // s - short      (2 bytes)
+    // l - long long  (8 bytes)
+    // d - double     (8 bytes)
+    void CMemoryHandler::initialize_memory_file(wchar_t* file_name, wchar_t* format, HANDLE& output_file) const {
         std::wstring wformat(format);
         std::string sformat(wformat.begin(), wformat.end());
-        std::stringstream log_message;
-        log_message << "Opening shared memory file with format " << sformat;
-        this->info(log_message.str().c_str());
+        std::wstring wfile_name(file_name);
+        std::string sfile_name(wfile_name.begin(), wfile_name.end());
+        this->info("Initializing shared mem file with format {}", sformat);
 
         const char float_type = 'f';
         const char boolean_type = 'b';
         const char integer_type = 'i';
         const char short_type = 's';
         const char long_long_type = 'l';
+        const char double_type = 'd';
 
         size_t size = 0;
         for (int i = 0; format[i] != '\0'; i++)
@@ -101,17 +106,21 @@ namespace ets2_la_plugin
             {
                 size += sizeof(long long);
             }
+            else if (format[i] == double_type)
+            {
+                size += sizeof(double);
+            }
         }
 
-        output_h_map_file = CreateFileMapping(
-            INVALID_HANDLE_VALUE,    // use paging file
+        output_file = CreateFileMapping(
+            INVALID_HANDLE_VALUE,    // paging file
             NULL,                    // default security
             PAGE_READWRITE,          // read/write access
             0,                       // maximum object size (high-order DWORD)
             size,                    // maximum object size (low-order DWORD)
             file_name);              // name of mapping object
 
-        if (output_h_map_file == NULL) {
+        if (output_file == NULL) {
             DWORD dw = GetLastError();
             std::stringstream ss;
             ss << dw;
@@ -120,93 +129,112 @@ namespace ets2_la_plugin
             return;
         }
 
-        void* pBuf = MapViewOfFile(output_h_map_file, FILE_MAP_ALL_ACCESS, 0, 0, size);
+        void* pBuf = MapViewOfFile(output_file, FILE_MAP_ALL_ACCESS, 0, 0, size);
 
         if (pBuf == NULL) {
-            this->error("Failed to map view of file.");
-            CloseHandle(output_h_map_file);
-            output_h_map_file = NULL;
+            DWORD dw = GetLastError();
+            std::stringstream ss;
+            ss << dw;
+            this->error("Failed to map view of file {}. Error code: {}", sfile_name, ss.str());
+            CloseHandle(output_file);
+            output_file = NULL;
             return;
         }
+
+        float f = 0.0f;
+        bool b = false;
+        int n = 0;
+        short s = 0;
+        long long l = 0;
+        double d = 0.0;
 
         int offset = 0;
         for (int i = 0; format[i] != '\0'; i++)
         {
-            if (format[i] == float_type)
+            switch (format[i])
             {
-                float f = 0.0f;
-                memcpy(static_cast<char*>(pBuf) + offset, &f, sizeof(float));
-                offset += sizeof(float);
-            }
-            else if (format[i] == boolean_type)
-            {
-                bool b = false;
-                memcpy(static_cast<char*>(pBuf) + offset, &b, sizeof(bool));
-                offset += sizeof(bool);
-            }
-            else if (format[i] == integer_type)
-            {
-                int n = 0;
-                memcpy(static_cast<char*>(pBuf) + offset, &n, sizeof(int));
-                offset += sizeof(int);
-            }
-            else if (format[i] == short_type)
-            {
-                short s = 0;
-                memcpy(static_cast<char*>(pBuf) + offset, &s, sizeof(short));
-                offset += sizeof(short);
-            }
-            else if (format[i] == long_long_type)
-            {
-                long long l = 0;
-                memcpy(static_cast<char*>(pBuf) + offset, &l, sizeof(long long));
-                offset += sizeof(long long);
+                case float_type:
+                    memcpy(static_cast<char*>(pBuf) + offset, &f, sizeof(float));
+                    offset += sizeof(float);
+                    break;
+                case boolean_type:
+                    memcpy(static_cast<char*>(pBuf) + offset, &b, sizeof(bool));
+                    offset += sizeof(bool);
+                    break;
+                case integer_type:
+                    memcpy(static_cast<char*>(pBuf) + offset, &n, sizeof(int));
+                    offset += sizeof(int);
+                    break;
+                case short_type:
+                    memcpy(static_cast<char*>(pBuf) + offset, &s, sizeof(short));
+                    offset += sizeof(short);
+                    break;
+                case long_long_type:
+                    memcpy(static_cast<char*>(pBuf) + offset, &l, sizeof(long long));
+                    offset += sizeof(long long);
+                    break;
+                case double_type:                    
+                    memcpy(static_cast<char*>(pBuf) + offset, &d, sizeof(double));
+                    offset += sizeof(double);
+                    break;
+                default:
+                    break;
             }
         }
 
         UnmapViewOfFile(pBuf);
-
-        this->info("Successfully opened shared mem file with size {}", size);
+        this->info("Successfully opened shared mem file {} with size {}", sfile_name, size);
     }
 
-    // Read the input memory file
     InputMemData CMemoryHandler::read_input_mem() const {
-        if (input_h_map_file == NULL) {
+        if (input_file == NULL) {
             this->error("Shared mem file not open.");
             return InputMemData();
         }
 
-        void* pBuf = MapViewOfFile(input_h_map_file, FILE_MAP_ALL_ACCESS, 0, 0, 17);
+        void* pBuf = MapViewOfFile(input_file, FILE_MAP_ALL_ACCESS, 0, 0, 18);
 
         float steering = 0.0f;
         bool override_steering = false;
-        float throttle = 0.0f;
-        bool override_throttle = false;
-        float brake = 0.0f;
-        bool override_brake = false;
-        int timestamp = 0;
+        double steering_timestamp = 0;
+        float acceleration = 0.0f;
+        bool override_acceleration = false;
+        double acceleration_timestamp = 0;
 
         steering = *reinterpret_cast<float*>(static_cast<char*>(pBuf));
-        override_steering = *reinterpret_cast<bool*>(static_cast<char*>(pBuf) + 0x04);
-        throttle = *reinterpret_cast<float*>(static_cast<char*>(pBuf) + 0x05);
-        override_throttle = *reinterpret_cast<bool*>(static_cast<char*>(pBuf) + 0x09);
-        brake = *reinterpret_cast<float*>(static_cast<char*>(pBuf) + 0x0A);
-        override_brake = *reinterpret_cast<bool*>(static_cast<char*>(pBuf) + 0x0E);
-        timestamp = *reinterpret_cast<int*>(static_cast<char*>(pBuf) + 0x0F);
+        override_steering = *reinterpret_cast<bool*>(static_cast<char*>(pBuf) + 4);
+        steering_timestamp = *reinterpret_cast<double*>(static_cast<char*>(pBuf) + 5);
+        acceleration = *reinterpret_cast<float*>(static_cast<char*>(pBuf) + 13);
+        override_acceleration = *reinterpret_cast<bool*>(static_cast<char*>(pBuf) + 17);
+        acceleration_timestamp = *reinterpret_cast<double*>(static_cast<char*>(pBuf) + 18);
 
         UnmapViewOfFile(pBuf);
 
-        return InputMemData{ steering, override_steering, throttle, override_throttle, brake, override_brake, timestamp };
+        return InputMemData{ steering, override_steering, steering_timestamp, acceleration, override_acceleration, acceleration_timestamp };
     }
 
-    // Output camera data to the shared memory file
-    void CMemoryHandler::write_camera_mem(const CameraMemData data) const {
-        if (camera_h_map_file == NULL) {
+    void CMemoryHandler::write_state_mem(const PluginStateData data) const {
+        if (state_file == NULL) {
             this->error("Shared mem file not open.");
             return;
         }
 
-        void* pBuf = MapViewOfFile(camera_h_map_file, FILE_MAP_ALL_ACCESS, 0, 0, 36);
+        void* pBuf = MapViewOfFile(state_file, FILE_MAP_ALL_ACCESS, 0, 0, 6);
+
+        memcpy(static_cast<char*>(pBuf), &data.version, sizeof(int));
+        memcpy(static_cast<char*>(pBuf) + 4, &data.steering_overridden, sizeof(bool));
+        memcpy(static_cast<char*>(pBuf) + 5, &data.acceleration_overridden, sizeof(bool));
+
+        UnmapViewOfFile(pBuf);
+    }
+
+    void CMemoryHandler::write_camera_mem(const CameraMemData data) const {
+        if (camera_file == NULL) {
+            this->error("Shared mem file not open.");
+            return;
+        }
+
+        void* pBuf = MapViewOfFile(camera_file, FILE_MAP_ALL_ACCESS, 0, 0, 36);
 
         memcpy(static_cast<char*>(pBuf), &data.fov, sizeof(float));
         memcpy(static_cast<char*>(pBuf) + 4, &data.pos_x, sizeof(float));
@@ -218,19 +246,36 @@ namespace ets2_la_plugin
         memcpy(static_cast<char*>(pBuf) + 24, &data.qx, sizeof(float));
         memcpy(static_cast<char*>(pBuf) + 28, &data.qy, sizeof(float));
         memcpy(static_cast<char*>(pBuf) + 32, &data.qz, sizeof(float));
+        
+        memcpy(static_cast<char*>(pBuf) + 36, &data.m11, sizeof(float));
+        memcpy(static_cast<char*>(pBuf) + 40, &data.m12, sizeof(float));
+        memcpy(static_cast<char*>(pBuf) + 44, &data.m13, sizeof(float));
+        memcpy(static_cast<char*>(pBuf) + 48, &data.m14, sizeof(float));
+        memcpy(static_cast<char*>(pBuf) + 52, &data.m21, sizeof(float));
+        memcpy(static_cast<char*>(pBuf) + 56, &data.m22, sizeof(float));
+        memcpy(static_cast<char*>(pBuf) + 60, &data.m23, sizeof(float));
+        memcpy(static_cast<char*>(pBuf) + 64, &data.m24, sizeof(float));
+        memcpy(static_cast<char*>(pBuf) + 68, &data.m31, sizeof(float));
+        memcpy(static_cast<char*>(pBuf) + 72, &data.m32, sizeof(float));
+        memcpy(static_cast<char*>(pBuf) + 76, &data.m33, sizeof(float));
+        memcpy(static_cast<char*>(pBuf) + 80, &data.m34, sizeof(float));
+        memcpy(static_cast<char*>(pBuf) + 84, &data.m41, sizeof(float));
+        memcpy(static_cast<char*>(pBuf) + 88, &data.m42, sizeof(float));
+        memcpy(static_cast<char*>(pBuf) + 92, &data.m43, sizeof(float));
+        memcpy(static_cast<char*>(pBuf) + 96, &data.m44, sizeof(float));
 
         UnmapViewOfFile(pBuf);
     }
 
     void CMemoryHandler::write_traffic_mem(const TrafficMemData data) const
     {
-        if (traffic_h_map_file == NULL)
+        if (traffic_file == NULL)
         {
             this->error("Traffic shared mem file not open.");
             return;
         }
 
-        void* pBuf = MapViewOfFile(traffic_h_map_file, FILE_MAP_ALL_ACCESS, 0, 0, 6960);
+        void* pBuf = MapViewOfFile(traffic_file, FILE_MAP_ALL_ACCESS, 0, 0, 6960);
         int offset = 0;
 
         for (int i = 0; i < 40; i++)
@@ -274,13 +319,13 @@ namespace ets2_la_plugin
 
     void CMemoryHandler::write_semaphore_mem(const SemaphoreMemData data) const
     {
-        if (semaphore_h_map_file == NULL)
+        if (semaphore_file == NULL)
         {
             this->error("Semaphore shared mem file not open.");
             return;
         }
 
-        void* pBuf = MapViewOfFile(semaphore_h_map_file, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(SemaphoreMemData));
+        void* pBuf = MapViewOfFile(semaphore_file, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(SemaphoreMemData));
         int offset = 0;
 
         for (int i = 0; i < 40; i++)
@@ -288,18 +333,18 @@ namespace ets2_la_plugin
             memcpy(static_cast<char*>(pBuf) + offset, &data.semaphores[i].x, sizeof(float));
             memcpy(static_cast<char*>(pBuf) + offset + 4, &data.semaphores[i].y, sizeof(float));
             memcpy(static_cast<char*>(pBuf) + offset + 8, &data.semaphores[i].z, sizeof(float));
-            memcpy(static_cast<char*>(pBuf) + offset + 12, &data.semaphores[i].cx, sizeof(float));
-            memcpy(static_cast<char*>(pBuf) + offset + 16, &data.semaphores[i].cz, sizeof(float));
-            memcpy(static_cast<char*>(pBuf) + offset + 20, &data.semaphores[i].qw, sizeof(float));
-            memcpy(static_cast<char*>(pBuf) + offset + 24, &data.semaphores[i].qx, sizeof(float));
-            memcpy(static_cast<char*>(pBuf) + offset + 28, &data.semaphores[i].qy, sizeof(float));
-            memcpy(static_cast<char*>(pBuf) + offset + 32, &data.semaphores[i].qz, sizeof(float));
-            memcpy(static_cast<char*>(pBuf) + offset + 36, &data.semaphores[i].type, sizeof(int));
-            memcpy(static_cast<char*>(pBuf) + offset + 40, &data.semaphores[i].time_remaining, sizeof(float));
-            memcpy(static_cast<char*>(pBuf) + offset + 44, &data.semaphores[i].state, sizeof(int));
-            memcpy(static_cast<char*>(pBuf) + offset + 48, &data.semaphores[i].id, sizeof(int));
+            memcpy(static_cast<char*>(pBuf) + offset + 12, &data.semaphores[i].cx, sizeof(short));
+            memcpy(static_cast<char*>(pBuf) + offset + 14, &data.semaphores[i].cz, sizeof(short));
+            memcpy(static_cast<char*>(pBuf) + offset + 16, &data.semaphores[i].qw, sizeof(float));
+            memcpy(static_cast<char*>(pBuf) + offset + 20, &data.semaphores[i].qx, sizeof(float));
+            memcpy(static_cast<char*>(pBuf) + offset + 24, &data.semaphores[i].qy, sizeof(float));
+            memcpy(static_cast<char*>(pBuf) + offset + 28, &data.semaphores[i].qz, sizeof(float));
+            memcpy(static_cast<char*>(pBuf) + offset + 32, &data.semaphores[i].type, sizeof(int));
+            memcpy(static_cast<char*>(pBuf) + offset + 36, &data.semaphores[i].time_remaining, sizeof(float));
+            memcpy(static_cast<char*>(pBuf) + offset + 40, &data.semaphores[i].state, sizeof(int));
+            memcpy(static_cast<char*>(pBuf) + offset + 44, &data.semaphores[i].id, sizeof(int));
 
-            offset += 52;
+            offset += 48;
         }
 
         UnmapViewOfFile(pBuf);
@@ -307,13 +352,13 @@ namespace ets2_la_plugin
 
     void CMemoryHandler::write_route_mem(const RouteMemData data) const
     {
-        if (route_h_map_file == NULL)
+        if (route_file == NULL)
         {
             this->error("Route shared mem file not open.");
             return;
         }
 
-        void* pBuf = MapViewOfFile(route_h_map_file, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(RouteMemData));
+        void* pBuf = MapViewOfFile(route_file, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(RouteMemData));
         int offset = 0;
 
         for (int i = 0; i < 6000; i++)
@@ -328,123 +373,21 @@ namespace ets2_la_plugin
         UnmapViewOfFile(pBuf);
     }
 
-    void CMemoryHandler::create_traffic_memory() const {
-        //                   xyz    whl  tc is_tmp is_trailer
-        wchar_t* vehicle = L"ffffffffffffssbb"; // 54 bytes
-        //                      wxyz   sa id
-
-        //                   xyz    whl
-        wchar_t* trailer = L"ffffffffff";    // 40 bytes
-        //                      wxyz
-
-        // Concatenate vehicle + trailer + trailer
-        size_t vehicle_len = wcslen(vehicle);
-        size_t trailer_len = wcslen(trailer);
-        size_t vehicle_object_len = vehicle_len + 3 * trailer_len + 1; // +1 for null terminator
-
-        wchar_t* vehicle_object = (wchar_t*)malloc(vehicle_object_len * sizeof(wchar_t));
-        if (!vehicle_object) {
-            this->error("Memory allocation failed for vehicle_object");
+    void CMemoryHandler::initialize_memory_file_multiple(wchar_t* file_name, wchar_t* format, int count, HANDLE& output_file) const {
+        wchar_t* total_format = (wchar_t*)malloc(count * (wcslen(format) + 1) * sizeof(wchar_t)); // count objects, +1 for null terminator
+        if (!total_format) {
+            this->error("Couldn't generate total_format");
             return;
         }
 
-        wcscpy(vehicle_object, vehicle); // Copy vehicle
-        wcscat(vehicle_object, trailer); // Append trailer
-        wcscat(vehicle_object, trailer); // Append trailer again
-        wcscat(vehicle_object, trailer); // Append trailer again again
-
-        int vehicle_count = 40;
-        size_t total_len = vehicle_count * vehicle_object_len + 1; // +1 for null terminator
-
-        wchar_t* total_vehicle_format = (wchar_t*)malloc(total_len * sizeof(wchar_t));
-        if (!total_vehicle_format) {
-            this->error("Memory allocation failed for total_vehicle_format");
-            free(vehicle_object);
-            return;
+        std::wstring wformat(format);
+        std::wstring wtotal_format;
+        for (int i = 0; i < count; i++) {
+            wtotal_format += wformat;
         }
+        wcscpy(total_format, wtotal_format.c_str());
 
-        total_vehicle_format[0] = L'\0'; // Initialize as an empty string
-        for (int i = 0; i < vehicle_count; i++) {
-            wcscat(total_vehicle_format, vehicle_object);
-        }
-
-        this->initialize_memory_file(const_cast<wchar_t*>(traffic_mem_name), total_vehicle_format, 
-            const_cast<HANDLE&>(traffic_h_map_file));
-        free(vehicle_object);
-        free(total_vehicle_format);
-    }
-
-    void CMemoryHandler::create_semaphore_memory() const {
-        //                           xyz      t s
-        const wchar_t* semaphore = L"fffffffffifii"; // 52 bytes
-        //                              ccwxyz r id
-
-        size_t semaphore_length = wcslen(semaphore);
-        size_t semaphore_object_length = semaphore_length + 1; // +1 for null terminator
-
-        wchar_t* semaphore_object = (wchar_t*)malloc(semaphore_object_length * sizeof(wchar_t));
-        if (!semaphore_object) {
-            this->error("Memory allocation failed for semaphore_object");
-            return;
-        }
-
-        wcscpy(semaphore_object, semaphore); // Copy semaphore
-
-        int semaphore_count = 40;
-        size_t total_len = semaphore_count * semaphore_object_length + 1; // +1 for null terminator
-
-        wchar_t* total_semaphore_format = (wchar_t*)malloc(total_len * sizeof(wchar_t));
-        if (!total_semaphore_format) {
-            this->error("Memory allocation failed for total_semaphore_format");
-            free(semaphore_object);
-            return;
-        }
-
-        total_semaphore_format[0] = L'\0'; // Initialize as an empty string
-        for (int i = 0; i < semaphore_count; i++) {
-            wcscat(total_semaphore_format, semaphore_object);
-        }
-
-        this->initialize_memory_file(const_cast<wchar_t*>(semaphore_mem_name), total_semaphore_format, 
-            const_cast<HANDLE&>(semaphore_h_map_file));
-        free(semaphore_object);
-        free(total_semaphore_format);
-    }
-
-    void CMemoryHandler::create_route_memory() const {
-        //                       uid
-        const wchar_t* route = L"lff"; // 16 bytes
-        //                        dt
-
-        size_t route_length = wcslen(route);
-        size_t route_object_length = route_length + 1; // +1 for null terminator
-
-        wchar_t* route_object = (wchar_t*)malloc(route_object_length * sizeof(wchar_t));
-        if (!route_object) {
-            this->error("Memory allocation failed for route_object");
-            return;
-        }
-
-        wcscpy(route_object, route); // Copy route
-
-        int route_count = 6000;
-        size_t total_len = route_count * route_object_length + 1; // +1 for null terminator
-
-        wchar_t* total_route_format = (wchar_t*)malloc(total_len * sizeof(wchar_t));
-        if (!total_route_format) {
-            this->error("Memory allocation failed for total_route_format");
-            free(route_object);
-            return;
-        }
-
-        total_route_format[0] = L'\0'; // Initialize as an empty string
-        for (int i = 0; i < route_count; i++) {
-            wcscat(total_route_format, route_object);
-        }
-
-        this->initialize_memory_file(const_cast<wchar_t*>(route_mem_name), total_route_format, 
-            const_cast<HANDLE&>(route_h_map_file));
-        free(route_object);
-        free(total_route_format);
+        this->initialize_memory_file(file_name, total_format, output_file);
+        free(total_format);
     }
 }

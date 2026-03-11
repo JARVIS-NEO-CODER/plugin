@@ -4,7 +4,7 @@
 
 #include "scssdk_telemetry.h"
 
-namespace ets2_la_plugin
+namespace ets2la_plugin
 {
 
 	SCSAPI_VOID telemetry_store_dplacement(const scs_string_t name, const scs_u32_t index, const scs_value_t* const value, const scs_context_t context)

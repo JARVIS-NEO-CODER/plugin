@@ -23,10 +23,10 @@ BEGIN
             VALUE "CompanyName", "ETS2LA"
             VALUE "FileDescription", "ETS2LA SDK plugin."
             VALUE "FileVersion", PLUGIN_VERSION_STR
-            VALUE "InternalName", "ets2_la_plugin"
+            VALUE "InternalName", "ets2la_plugin"
             VALUE "LegalCopyright", "Copyright (C) 2024"
-            VALUE "OriginalFilename", "ets2_la_plugin.dll"
-            VALUE "ProductName", "ets2_la_plugin"
+            VALUE "OriginalFilename", "ets2la_plugin.dll"
+            VALUE "ProductName", "ets2la_plugin"
             VALUE "ProductVersion", PLUGIN_VERSION_STR
         END
     END

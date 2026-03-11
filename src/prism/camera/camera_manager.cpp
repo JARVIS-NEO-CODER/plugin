@@ -1,6 +1,6 @@
 #include "camera_manager.hpp"
 
-namespace ets2_la_plugin::prism
+namespace ets2la_plugin::prism
 {
 
     uint64_t camera_manager_u::instance_ptr_address = 0;

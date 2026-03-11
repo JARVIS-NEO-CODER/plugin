@@ -3,7 +3,7 @@
 #include <cstdint>
 
 #pragma pack( push, 1 )
-namespace ets2_la_plugin::prism
+namespace ets2la_plugin::prism
 {
     // Some of this is a pure guess, but it does seem to work
 

@@ -4,7 +4,7 @@
 #include <vector>
 #include <sstream>
 
-namespace ets2_la_plugin
+namespace ets2la_plugin
 {
     struct pattern_byte
     {

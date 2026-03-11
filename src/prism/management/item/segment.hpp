@@ -5,7 +5,7 @@
 
 #pragma pack( push, 1 )
 
-namespace ets2_la_plugin::prism
+namespace ets2la_plugin::prism
 {
     class segment_t // Size: 0x0320
     {

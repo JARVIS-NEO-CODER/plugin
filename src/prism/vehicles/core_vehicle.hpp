@@ -5,7 +5,7 @@
 
 #pragma pack(push, 1)
 
-namespace ets2_la_plugin::prism
+namespace ets2la_plugin::prism
 {
     class core_vehicle_u : public unit_t // size: 0x0160
     {

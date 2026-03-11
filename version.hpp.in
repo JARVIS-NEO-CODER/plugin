@@ -1,6 +1,6 @@
 #pragma once
 
-namespace ets2_la_plugin
+namespace ets2la_plugin
 {
     constexpr const char* VERSION = "@PLUGIN_VERSION_MAJOR@.@PLUGIN_VERSION_MINOR@.@PLUGIN_VERSION_PATCH@";
     constexpr const char* GAME_VERSION = "@GAME_VERSION_MAJOR@.@GAME_VERSION_MINOR@.@GAME_VERSION_PATCH@";

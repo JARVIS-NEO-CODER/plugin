@@ -3,7 +3,7 @@
 
 #pragma pack(push, 1)
 
-namespace ets2_la_plugin::prism
+namespace ets2la_plugin::prism
 {
     class trailer_u : public core_vehicle_u // size: 0x0188
     {

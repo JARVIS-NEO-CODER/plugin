@@ -4,10 +4,12 @@
 #include "scssdk_telemetry.h"
 #include "fmt/core.h"
 #include "array"
+#include <map>
 
 #include "memory/virtual/memory_handler.hpp"
+#include "processing/traffic.hpp"
 
-namespace ets2_la_plugin
+namespace ets2la_plugin
 {
 
     namespace prism
@@ -17,16 +19,22 @@ namespace ets2_la_plugin
         class traffic_object_t;
     };
 
+    struct PluginStateData
+    {
+        int version;
+        bool steering_overridden;
+        bool acceleration_overridden;
+    };
+
     struct InputMemData
     {
-        float steering;          // 0
-        bool override_steering;  // 4
-        float throttle;          // 5
-        bool override_throttle;  // 9
-        float brake;             // 10
-        bool override_brake;     // 14
-        int timestamp;           // 15
-                                 // 19
+        float steering;                // 0
+        bool override_steering;        // 4
+        double steering_timestamp;     // 5
+        float acceleration;            // 13
+        bool override_acceleration;    // 17
+        double acceleration_timestamp; // 18
+                                       // 26
     };
 
     struct CameraMemData
@@ -41,7 +49,24 @@ namespace ets2_la_plugin
         float qx;    // 24
         float qy;    // 28
         float qz;    // 32
-                     // 36
+        // 4x4 projection matrix
+        float m11;   // 36
+        float m12;   // 40
+        float m13;   // 44
+        float m14;   // 48
+        float m21;   // 52
+        float m22;   // 56
+        float m23;   // 60
+        float m24;   // 64
+        float m31;   // 68
+        float m32;   // 72
+        float m33;   // 76
+        float m34;   // 80
+        float m41;   // 84
+        float m42;   // 88
+        float m43;   // 92
+        float m44;   // 96
+                     // 100
     };
 
     struct TrafficVehicle
@@ -98,22 +123,22 @@ namespace ets2_la_plugin
         float x;                // 0
         float y;                // 4
         float z;                // 8
-        float cx;               // 12
-        float cz;               // 16
-        float qw;               // 20
-        float qx;               // 24
-        float qy;               // 28
-        float qz;               // 32
-        int type;               // 36
-        float time_remaining;   // 40
-        int state;              // 44
-        int id;                 // 48
-                                // 52
+        short cx;               // 12
+        short cz;               // 14
+        float qw;               // 16
+        float qx;               // 20
+        float qy;               // 24
+        float qz;               // 28
+        int type;               // 32
+        float time_remaining;   // 36
+        int state;              // 40
+        int id;                 // 44
+                                // 48
     };
 
     struct SemaphoreMemData
     {
-        std::array<SemaphoreObject, 40> semaphores; // 2080
+        std::array<SemaphoreObject, 40> semaphores; // 1920
     };
 
     struct RouteTaskObject
@@ -136,31 +161,37 @@ namespace ets2_la_plugin
         scs_log_t scs_log_;
 
         mutable size_t last_route_length_{0};
+        mutable double steering_start_time = 0.0;
 
         CMemoryHandler *memory_manager_;
+        TrafficProcessor *traffic_processor_;
 
+        mutable bool was_overriding_acceleration = false;
+        mutable bool was_overriding_steering = false;
+        
         bool scan_for_required_patterns();
 
     public:
         scs_value_dplacement_t truck_pos;
-
         static CCore *g_instance;
-
+        
         CCore(const scs_telemetry_init_params_v101_t *init_params);
         ~CCore();
+        
         void get_camera_data() const;
-        void get_ai_traffic_data() const;
-
-        bool get_truckersmp_traffic_data() const;
-
+        
         void get_traffic_objects_data() const;
         void get_navigation_data() const;
+
+        void override_inputs() const;
+        void update_plugin_state() const;
 
         bool init();
         void destroy();
 
         void tick() const;
 
+        TrafficProcessor *get_traffic_processor() const { return this->traffic_processor_; }
         CMemoryHandler *get_memory_manager() const { return this->memory_manager_; }
 
         // TODO: change to file only or something
@@ -168,26 +199,26 @@ namespace ets2_la_plugin
         void debug(const char *fmt_s, T &&...args) const
         {
 #ifdef _DEBUG
-            scs_log_(0, fmt::vformat(std::string("[ets2_la_plugin] ") + fmt_s, fmt::make_format_args(args...)).c_str());
+            scs_log_(0, fmt::vformat(std::string("[ets2la_plugin] ") + fmt_s, fmt::make_format_args(args...)).c_str());
 #endif
         }
 
         template <class... T>
         void info(const char *fmt_s, T &&...args) const
         {
-            scs_log_(0, fmt::vformat(std::string("[ets2_la_plugin] ") + fmt_s, fmt::make_format_args(args...)).c_str());
+            scs_log_(0, fmt::vformat(std::string("[ets2la_plugin] ") + fmt_s, fmt::make_format_args(args...)).c_str());
         }
 
         template <class... T>
         void warning(const char *fmt_s, T &&...args) const
         {
-            scs_log_(1, fmt::vformat(std::string("[ets2_la_plugin] ") + fmt_s, fmt::make_format_args(args...)).c_str());
+            scs_log_(1, fmt::vformat(std::string("[ets2la_plugin] ") + fmt_s, fmt::make_format_args(args...)).c_str());
         }
 
         template <class... T>
         void error(const char *fmt_s, T &&...args) const
         {
-            scs_log_(2, fmt::vformat(std::string("[ets2_la_plugin] ") + fmt_s, fmt::make_format_args(args...)).c_str());
+            scs_log_(2, fmt::vformat(std::string("[ets2la_plugin] ") + fmt_s, fmt::make_format_args(args...)).c_str());
         }
     };
 }

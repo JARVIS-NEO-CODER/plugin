@@ -4,7 +4,7 @@
 
 #pragma pack(push, 1)
 
-namespace ets2_la_plugin
+namespace ets2la_plugin
 {
     struct float2_t // size: 0x0008
     {

@@ -5,7 +5,7 @@
 #include "prism/unit/unit.hpp"
 
 #pragma pack( push, 1 )
-namespace ets2_la_plugin::prism
+namespace ets2la_plugin::prism
 {
     class accessory_chassis_data_u;
     class physics_actor_physx_t;
@@ -133,6 +133,7 @@ namespace ets2_la_plugin::prism
 
         static bool scan_patterns();
         bool set_steering_angle( const float new_steering_angle );
+        float get_steering_angle();
     };
     static_assert( sizeof( vehicle_shared_u ) == 0xD68 );
 }

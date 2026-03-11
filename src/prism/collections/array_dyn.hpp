@@ -3,7 +3,7 @@
 #include "./array.hpp"
 
 #pragma pack(push, 1)
-namespace ets2_la_plugin::prism
+namespace ets2la_plugin::prism
 {
     template < class T >
     class array_dyn_t : public array_t< T >

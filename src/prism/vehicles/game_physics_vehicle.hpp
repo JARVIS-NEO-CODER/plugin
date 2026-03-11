@@ -2,7 +2,7 @@
 #include "vehicle_shared.hpp"
 
 #pragma pack( push, 1 )
-namespace ets2_la_plugin::prism
+namespace ets2la_plugin::prism
 {
     class physics_vehicle_u : public vehicle_shared_u // Size: 0x1218 1.54
     {

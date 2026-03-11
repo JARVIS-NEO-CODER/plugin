@@ -7,7 +7,7 @@
 
 #pragma pack(push, 1)
 
-namespace ets2_la_plugin::prism
+namespace ets2la_plugin::prism
 {
     class core_camera_u : public unit_t // Size: 0x0290
     {

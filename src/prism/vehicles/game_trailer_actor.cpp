@@ -4,7 +4,7 @@
 #include "memory/memory_utils.hpp"
 #include "patterns.hpp"
 
-namespace ets2_la_plugin::prism
+namespace ets2la_plugin::prism
 {
     uint32_t game_trailer_actor_u::slave_trailer_offset = 0;
 

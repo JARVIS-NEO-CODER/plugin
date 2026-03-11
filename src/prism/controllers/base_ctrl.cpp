@@ -4,7 +4,7 @@
 #include "memory/memory_utils.hpp"
 #include "patterns.hpp"
 
-namespace ets2_la_plugin::prism
+namespace ets2la_plugin::prism
 {
 
     uint64_t base_ctrl_u::instance_ptr_address               = 0;

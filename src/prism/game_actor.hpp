@@ -5,7 +5,7 @@
 
 #pragma pack( push, 1 )
 
-namespace ets2_la_plugin::prism
+namespace ets2la_plugin::prism
 {
     // Size: 0x21E8 1.55
     class game_actor_u : public /* [0x10] @ 0x00 */ unit_t

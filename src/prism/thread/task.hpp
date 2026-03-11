@@ -2,7 +2,7 @@
 
 #pragma pack( push, 1 )
 
-namespace ets2_la_plugin::prism::thread
+namespace ets2la_plugin::prism::thread
 {
 
     class task_t // Size: 0x0038

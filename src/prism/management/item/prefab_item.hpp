@@ -6,7 +6,7 @@
 
 #pragma pack( push, 1 )
 
-namespace ets2_la_plugin::prism
+namespace ets2la_plugin::prism
 {
     class prefab_item_t : public kdop_item_t // Size: 0x01B0
     {

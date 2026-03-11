@@ -5,7 +5,7 @@
 
 #pragma pack(push, 1)
 
-namespace ets2_la_plugin::prism
+namespace ets2la_plugin::prism
 {
 	class traffic_vehicle_physics_data : public traffic_dummy_vehicle_physics_data // Size: 0x0158
 	{

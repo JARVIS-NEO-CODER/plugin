@@ -2,43 +2,52 @@
 Please see the [original repository](https://github.com/dariowouters/ts-extra-utilities) by dariowouters!
 
 # What does this do?
+- [x] Expose a virtual memory file to `Local\ETS2LAPluginStatus` to get the current plugin status. (Use this if you want to know when ETS2LA is doing steering and acceleration overrides to detect ETS2LA usage!)
+    ```python
+    import mmap
+    buf = mmap.mmap(0, 6, r"Local\ETS2LAPluginStatus")
+    while True:
+        format = "=i??"
+        data = struct.unpack(format, buf[:2])
+        data # (version, is_steering_overridden, is_acceleration_overridden)
+    ```
 - [x] Expose a virtual memory file to `Local\ETS2LAPluginInput` to **send input commands** directly into the game memory.
     ```python
     import time, mmap
-    buf = mmap.mmap(0, 19, r"Local\ETS2LAPluginInput")
+    buf = mmap.mmap(0, 18, r"Local\ETS2LAPluginInput")
     while True:
-        buf[:] = struct.pack('=f?f?f?l',
-            0.00, # Steering value'
+        buf[:] = struct.pack('=f?ff?f',
+            0.00, # Steering value
             True, # Override Steering
-            0.00, # Throttle value
-            True, # Override Throttle
-            0.00, # Brake value
-            True, # Override Brake
-            math.floor(time.time()) # Current timestamp (data over 1s old will be ignored)
+            time.time(), # Current timestamp for steering (data over 1s old will be ignored)
+            0.00, # Acceleration (-1 - 1, brake - throttle) value
+            True, # Override Acceleration
+            time.time() # Current timestamp for acceleration (data over 1s old will be ignored)
         )
     ```
 - [x] Expose a virtual memory file at `Local\ETS2LACameraProps` to get the **current camera properties** from the game.
     ```python
     import time, mmap
-    buf = mmap.mmap(0, 36, r"Local\ETS2LACameraProps")
+    buf = mmap.mmap(0, 100, r"Local\ETS2LACameraProps")
     while True:
-        format = "=ffffhhffff"
+        format = "=ffffhhffffffffffffffffffff"
         data = struct.unpack(format, buf[:36])
-        data # fov, x, y, z, cx, cz, qw, qx, qy, qz
+        data # fov, x, y, z, cx, cz, qw, qx, qy, qz, m11, m12, m13, m14, m21, ..., m44
+             # the m values are a 4x4 camera projection matrix.
     ```
 - [x] Expose a virtual memory file at `Local\ETS2LATraffic` to get the **closest 40 traffic vehicles**.
     ```python
     import time, mmap
-    buf = mmap.mmap(0, 5360, r"Local\ETS2LATraffic")
+    buf = mmap.mmap(0, 6960, r"Local\ETS2LATraffic")
     while True:
-        vehicle_format = "ffffffffffffh??"
+        vehicle_format = "ffffffffffffhhbb"
         trailer_format = "ffffffffff"
-        vehicle_object_format = vehicle_format + trailer_format + trailer_format
+        vehicle_object_format = vehicle_format + trailer_format + trailer_format + trailer_format
         total_format = "=" + vehicle_object_format * 40
-        data = struct.unpack(total_format, buf[:5360])
-        data # (vehicle + trailer + trailer) * 40
+        data = struct.unpack(total_format, buf[:6960])
+        data # (vehicle + 3x trailer) * 40
         # vehicle:
-        # x, y, z, qw, qx, qy, qz, width, height, length, speed, acceleration, trailer_count, is_tmp, is_trailer
+        # x, y, z, qw, qx, qy, qz, width, height, length, speed, acceleration, trailer_count, id, is_tmp, is_trailer
         # trailer:
         # x, y, z, qw, qx, qy, qz, width, height, length
     ```
@@ -46,7 +55,7 @@ Please see the [original repository](https://github.com/dariowouters/ts-extra-ut
 - [x] Expose a virtual memory file at `Local\ETS2LASemaphore` to get the **closest 40 traffic lights and gates**.
     ```python
     import time, mmap
-    buf = mmap.mmap(0, 2080, r"Local\ETS2LASemaphore")
+    buf = mmap.mmap(0, 1920, r"Local\ETS2LASemaphore")
 
     # Traffic light states
     OFF = 0
@@ -63,13 +72,13 @@ Please see the [original repository](https://github.com/dariowouters/ts-extra-ut
     OPEN = 3
 
     while True:
-        semaphore_format = "fffffffffifii"
+        semaphore_format = "fffhhffffifii"
         total_format = "=" + semaphore_format * 40
-        data = struct.unpack(total_format, buf[:2080])
+        data = struct.unpack(total_format, buf[:1920])
         data # (semaphore_format) * 40
-        # traffic_light (index 9 == 1):
+        # traffic_light (value 9 == 1):
         # x, y, z, cx, cz, qw, qx, qy, qz, type, time_remaining (in state), state, id
-        # gate (index 9 == 2):
+        # gate (value 9 == 2):
         # x, y, z, cx, cz, qw, qx, qy, qz, type, time_remaining (in state), state, id 
     ```
 - [x] Expose a virtual memory file at `Local\ETS2LARoute` to output the **current navigation route**. NOTE: Limited to 6000 items! (mods might go over)

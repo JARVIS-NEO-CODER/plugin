@@ -5,8 +5,9 @@
 #include <string>
 #include <array>
 
-namespace ets2_la_plugin
+namespace ets2la_plugin
 {
+    struct PluginStateData;
     struct InputMemData;
     struct CameraMemData;
     struct TrafficMemData;
@@ -16,19 +17,33 @@ namespace ets2_la_plugin
     class CMemoryHandler
     {
     private:
-        HANDLE input_h_map_file;
-        HANDLE camera_h_map_file;
-        HANDLE traffic_h_map_file;
-        HANDLE semaphore_h_map_file;
-        HANDLE route_h_map_file;
+        HANDLE state_file;
+        HANDLE input_file;
+        HANDLE camera_file;
+        HANDLE traffic_file;
+        HANDLE semaphore_file;
+        HANDLE route_file;
         
-        const wchar_t* input_mem_name = L"Local\\ETS2LAPluginInput";
-        const wchar_t* camera_mem_name = L"Local\\ETS2LACameraProps";
-        const wchar_t* traffic_mem_name = L"Local\\ETS2LATraffic";
-        const wchar_t* semaphore_mem_name = L"Local\\ETS2LASemaphore";
-        const wchar_t* route_mem_name = L"Local\\ETS2LARoute";
+        const wchar_t* state_mem_name      = L"Local\\ETS2LAPluginStatus";
+        const wchar_t* input_mem_name      = L"Local\\ETS2LAPluginInput";
+        const wchar_t* camera_mem_name     = L"Local\\ETS2LACameraProps";
+        const wchar_t* traffic_mem_name    = L"Local\\ETS2LATraffic";
+        const wchar_t* semaphore_mem_name  = L"Local\\ETS2LASemaphore";
+        const wchar_t* route_mem_name      = L"Local\\ETS2LARoute";
         
         scs_log_t scs_log_;
+
+        template <class... T>
+        void info(const char *fmt_s, T &&...args) const
+        {
+            scs_log_(0, fmt::vformat(std::string("[ets2la_plugin][CMemoryHandler] ") + fmt_s, fmt::make_format_args(args...)).c_str());
+        }
+
+        template <class... T>
+        void error(const char *fmt_s, T &&...args) const
+        {
+            scs_log_(2, fmt::vformat(std::string("[ets2la_plugin] ") + fmt_s, fmt::make_format_args(args...)).c_str());
+        }
 
     public:
         CMemoryHandler(scs_log_t scs_log);
@@ -37,46 +52,16 @@ namespace ets2_la_plugin
         bool init();
         void destroy();
 
-        // Generic initialize
-        void initialize_memory_file(wchar_t* file_name, wchar_t* format, HANDLE& output_h_map_file) const;
-        
-        // Specific initializers
-        void create_traffic_memory() const;
-        void create_semaphore_memory() const;
-        void create_route_memory() const;
+        // initializers
+        void initialize_memory_file(wchar_t* file_name, wchar_t* format, HANDLE& output_file) const;
+        void initialize_memory_file_multiple(wchar_t* file_name, wchar_t* format, int count, HANDLE& output_file) const;
         
         // read/write
         InputMemData read_input_mem() const;
+        void write_state_mem(const PluginStateData data) const;
         void write_camera_mem(const CameraMemData data) const;
         void write_traffic_mem(const TrafficMemData data) const;
         void write_semaphore_mem(const SemaphoreMemData data) const;
         void write_route_mem(const RouteMemData data) const;
-
-        // Logging
-        template <class... T>
-        void debug(const char *fmt_s, T &&...args) const
-        {
-    #ifdef _DEBUG
-            scs_log_(0, fmt::vformat(std::string("[ets2_la_plugin][CMemoryHandler] ") + fmt_s, fmt::make_format_args(args...)).c_str());
-    #endif
-        }
-
-        template <class... T>
-        void info(const char *fmt_s, T &&...args) const
-        {
-            scs_log_(0, fmt::vformat(std::string("[ets2_la_plugin][CMemoryHandler] ") + fmt_s, fmt::make_format_args(args...)).c_str());
-        }
-
-        template <class... T>
-        void warning(const char *fmt_s, T &&...args) const
-        {
-            scs_log_(1, fmt::vformat(std::string("[ets2_la_plugin][CMemoryHandler] ") + fmt_s, fmt::make_format_args(args...)).c_str());
-        }
-
-        template <class... T>
-        void error(const char *fmt_s, T &&...args) const
-        {
-            scs_log_(2, fmt::vformat(std::string("[ets2_la_plugin][CMemoryHandler] ") + fmt_s, fmt::make_format_args(args...)).c_str());
-        }
     };
 }
