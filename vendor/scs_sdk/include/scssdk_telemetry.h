@@ -90,7 +90,7 @@ typedef scs_telemetry_init_params_v100_t scs_telemetry_init_params_v101_t;
  * @param params Structure with additional initialization data specific to the specified API version.
  * @return SCS_RESULT_ok if version is supported and library was initialized. Error code otherwise.
  */
-__declspec(dllexport) SCSAPI_RESULT   scs_telemetry_init              (const scs_u32_t version, const scs_telemetry_init_params_t *const params);
+SCSAPI_RESULT   scs_telemetry_init              (const scs_u32_t version, const scs_telemetry_init_params_t *const params);
 
 /**
  * @brief Shuts down the telemetry support.
@@ -98,7 +98,7 @@ __declspec(dllexport) SCSAPI_RESULT   scs_telemetry_init              (const scs
  * The engine will call this function if available and if the scs_telemetry_init indicated
  * success.
  */
-__declspec(dllexport) SCSAPI_VOID     scs_telemetry_shutdown          (void);
+SCSAPI_VOID     scs_telemetry_shutdown          (void);
 
 SCSSDK_FOOTER
 

@@ -1,4 +1,3 @@
-#pragma once
 #include "gps_manager.hpp"
 #include "prism/controllers/game_ctrl.hpp"
 

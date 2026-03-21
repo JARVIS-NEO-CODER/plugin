@@ -8,6 +8,7 @@
 #include "prism/management/item/semaphore_instance.hpp"
 #include "memory/virtual/memory_handler.hpp"
 #include <vector>
+#include <map>
 
 namespace ets2la_plugin
 {
@@ -15,7 +16,7 @@ namespace ets2la_plugin
     {
         std::vector<prism::traffic_ai_vehicle_t*> ai_vehicles;
         std::pair<
-            std::vector<prism::game_physics_vehicle_u*>, 
+            std::vector<prism::game_physics_vehicle_u*>,
             std::vector<prism::game_trailer_actor_u*>
         > tmp_vehicles;
     };

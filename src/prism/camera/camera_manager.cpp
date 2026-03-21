@@ -1,5 +1,7 @@
 #include "camera_manager.hpp"
 
+#include "core.hpp"
+
 namespace ets2la_plugin::prism
 {
 
@@ -7,13 +9,19 @@ namespace ets2la_plugin::prism
 
     bool camera_manager_u::scan_patterns()
     {
-        const auto addr = memory::get_address_for_pattern( patterns::camera_manager, 3 );
+        const auto addr = memory::get_address_for_pattern(
+            patterns::camera_manager::pattern, patterns::camera_manager::offset_instance
+        );
 
         if ( addr == 0 )
         {
             return false;
         }
-        camera_manager_u::instance_ptr_address = addr + *reinterpret_cast< int32_t* >( addr ) + 4;
+        camera_manager_u::instance_ptr_address = memory::get_absolute_address_from_offset( addr );
+
+        CCore::g_instance->debug(
+            "Found camera_manager @ +{:x}", memory::as_offset( camera_manager_u::instance_ptr_address )
+        );
 
         return true;
     }

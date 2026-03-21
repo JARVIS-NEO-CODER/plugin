@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "prism/collections/array_dyn.hpp"
 #include "prism/collections/list_dyn.hpp"
 #include "prism/string.hpp"
@@ -12,6 +12,8 @@ namespace ets2la_plugin::prism
     // Size: 0x3088 1.58
     class base_ctrl_u : public /* [0x10] @ 0x00 */ unit_t
     {
+        class item_reg_t;
+
     public:
         array_dyn_t< class kdop_item_t* > map_kdop_items;                            // 0x0010 (0x20)
         array_dyn_t< class node_item_t* > map_nodes;                                 // 0x0030 (0x20)

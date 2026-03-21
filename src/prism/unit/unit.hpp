@@ -13,6 +13,11 @@ namespace ets2la_plugin::prism
 
     public:
         virtual void destructor();
+
+#if defined( __linux__ )
+        virtual void destructor2();
+#endif
+
         virtual void destroy();
         virtual void clone();
         virtual void vfunc_3();

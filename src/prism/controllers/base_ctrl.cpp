@@ -1,8 +1,9 @@
-﻿#pragma once
 #include "base_ctrl.hpp"
 
+#include "core.hpp"
 #include "memory/memory_utils.hpp"
 #include "patterns.hpp"
+#include <stdexcept>
 
 namespace ets2la_plugin::prism
 {
@@ -14,16 +15,26 @@ namespace ets2la_plugin::prism
 
     bool base_ctrl_u::scan_patterns()
     {
-        auto addr = memory::get_address_for_pattern( patterns::base_ctrl );
+        auto addr = memory::get_address_for_pattern( patterns::base_ctrl::pattern );
 
         if ( addr == 0 )
         {
-            throw std::runtime_error( "Failed to find base_ctrl pattern" );
+            throw std::runtime_error( "Failed to find base_ctrl instance pattern" );
         }
-        base_ctrl_u::instance_ptr_address = addr + 3 + *reinterpret_cast< int32_t* >( addr + 3 ) + 4;
-        base_ctrl_u::game_actor_offset    = *reinterpret_cast< uint32_t* >( addr + 17 );
+        base_ctrl_u::instance_ptr_address =
+            memory::get_absolute_address_from_offset( addr, patterns::base_ctrl::offset_instance );
+        base_ctrl_u::game_actor_offset =
+            *reinterpret_cast< uint32_t* >( addr + patterns::base_ctrl::offset_game_actor );
 
-        addr = memory::get_address_for_pattern( patterns::base_ctrl_u_some_nearby_kdop_items, 3 );
+        CCore::g_instance->debug(
+            "Found base_ctrl @ +{:x} and game actor offset {:x}",
+            memory::as_offset( base_ctrl_u::instance_ptr_address ),
+            base_ctrl_u::game_actor_offset
+        );
+
+        addr = memory::get_address_for_pattern(
+            patterns::base_ctrl::nearby_kdop_items::pattern, patterns::base_ctrl::nearby_kdop_items::offset
+        );
 
         if ( addr == 0 )
         {
@@ -32,14 +43,24 @@ namespace ets2la_plugin::prism
 
         base_ctrl_u::some_nearby_kdop_items_offset = *reinterpret_cast< uint32_t* >( addr );
 
-        const auto tmp_vehicles_addr =
-            memory::get_address_for_pattern( patterns::base_ctrl_u_some_nearby_non_ai_vehicles, 8 );
+        CCore::g_instance->debug(
+            "Found base_ctrl::some_nearby_kdop_items_offset {:x}", base_ctrl_u::some_nearby_kdop_items_offset
+        );
+
+        const auto tmp_vehicles_addr = memory::get_address_for_pattern(
+            patterns::base_ctrl::nearby_non_ai_vehicles::pattern, patterns::base_ctrl::nearby_non_ai_vehicles::offset
+        );
 
         if ( tmp_vehicles_addr == 0 )
         {
             throw std::runtime_error( "Failed to find TMP vehicle list offset" );
         }
         base_ctrl_u::some_nearby_non_ai_vehicles_offset = *reinterpret_cast< uint32_t* >( tmp_vehicles_addr );
+
+        CCore::g_instance->debug(
+            "Found base_ctrl_u::some_nearby_non_ai_vehicles_offset {:x}",
+            base_ctrl_u::some_nearby_non_ai_vehicles_offset
+        );
 
         return true;
     }

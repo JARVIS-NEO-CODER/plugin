@@ -1,8 +1,7 @@
 #pragma once
 
+#include "fmt/core.h"
 #include "scssdk_telemetry.h"
-#include <windows.h>
-#include <string>
 #include <array>
 
 namespace ets2la_plugin
@@ -17,20 +16,23 @@ namespace ets2la_plugin
     class CMemoryHandler
     {
     private:
-        HANDLE state_file;
-        HANDLE input_file;
-        HANDLE camera_file;
-        HANDLE traffic_file;
-        HANDLE semaphore_file;
-        HANDLE route_file;
-        
-        const wchar_t* state_mem_name      = L"Local\\ETS2LAPluginStatus";
-        const wchar_t* input_mem_name      = L"Local\\ETS2LAPluginInput";
-        const wchar_t* camera_mem_name     = L"Local\\ETS2LACameraProps";
-        const wchar_t* traffic_mem_name    = L"Local\\ETS2LATraffic";
-        const wchar_t* semaphore_mem_name  = L"Local\\ETS2LASemaphore";
-        const wchar_t* route_mem_name      = L"Local\\ETS2LARoute";
-        
+
+        void* state_mmap     = nullptr;
+        void* input_mmap     = nullptr;
+        void* camera_mmap    = nullptr;
+        void* traffic_mmap   = nullptr;
+        void* semaphore_mmap = nullptr;
+        void* route_mmap     = nullptr;
+
+        const wchar_t* state_mem_name      = L"ETS2LAPluginStatus";
+        const wchar_t* input_mem_name      = L"ETS2LAPluginInput";
+        const wchar_t* camera_mem_name     = L"ETS2LACameraProps";
+        const wchar_t* traffic_mem_name    = L"ETS2LATraffic";
+        const wchar_t* semaphore_mem_name  = L"ETS2LASemaphore";
+        const wchar_t* route_mem_name      = L"ETS2LARoute";
+
+        bool is_running_under_wine = false;
+
         scs_log_t scs_log_;
 
         template <class... T>
@@ -45,6 +47,8 @@ namespace ets2la_plugin
             scs_log_(2, fmt::vformat(std::string("[ets2la_plugin] ") + fmt_s, fmt::make_format_args(args...)).c_str());
         }
 
+        void unmap_file(void* mmap, const wchar_t* file_name, const size_t size);
+
     public:
         CMemoryHandler(scs_log_t scs_log);
         ~CMemoryHandler();
@@ -53,9 +57,9 @@ namespace ets2la_plugin
         void destroy();
 
         // initializers
-        void initialize_memory_file(wchar_t* file_name, wchar_t* format, HANDLE& output_file) const;
-        void initialize_memory_file_multiple(wchar_t* file_name, wchar_t* format, int count, HANDLE& output_file) const;
-        
+        void initialize_memory_file(const wchar_t* file_name, const wchar_t* format, void*& output_file) const;
+        void initialize_memory_file_multiple(const wchar_t* file_name, const wchar_t* format, int count, void*& output_file) const;
+
         // read/write
         InputMemData read_input_mem() const;
         void write_state_mem(const PluginStateData data) const;

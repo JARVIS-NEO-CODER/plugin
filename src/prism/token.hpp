@@ -1,42 +1,36 @@
 #pragma once
+#include <cstring>
 #include <string>
 
 namespace ets2la_plugin::prism
 {
-    constexpr int i_num_letters = 38;
-    constexpr char psz_letters[ i_num_letters ] = {
-        '\0', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b',
-        'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
-        'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '_'
-    };
+    constexpr int i_num_letters                 = 38;
+    constexpr char psz_letters[ i_num_letters ] = { '\0', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b',
+                                                    'c',  'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
+                                                    'p',  'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '_' };
 
     struct ulldiv_t
     {
         unsigned long long int quot;
         unsigned long long int rem;
 
-        ulldiv_t() : quot( 0ull ), rem( 0ull )
-        {
-        }
+        ulldiv_t() : quot( 0ull ), rem( 0ull ) {}
     };
 
     inline ulldiv_t div( unsigned long long int num, unsigned long long int divider )
     {
         ulldiv_t result;
-        result.rem = num % divider;
+        result.rem  = num % divider;
         result.quot = num / divider;
         return result;
     }
-
 
     class token_t
     {
     public:
         uint64_t m_token;
 
-        explicit token_t( const uint64_t token ) : m_token( token )
-        {
-        }
+        explicit token_t( const uint64_t token ) : m_token( token ) {}
 
         [[nodiscard]] std::string to_string() const
         {
@@ -47,7 +41,7 @@ namespace ets2la_plugin::prism
             int i = 0;
             for ( ; token_copy != 0; ++i )
             {
-                result = div( token_copy, 38ull );
+                result     = div( token_copy, 38ull );
                 token_copy = result.quot;
                 dest.push_back( psz_letters[ result.rem ] );
             }

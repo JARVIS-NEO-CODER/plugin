@@ -10,7 +10,9 @@ namespace ets2la_plugin::prism
 
     bool game_trailer_actor_u::scan_patterns()
     {
-        const auto addr = memory::get_address_for_pattern( patterns::game_trailer_actor_u_slave_trailer_offset, 3 );
+        const auto addr = memory::get_address_for_pattern(
+            patterns::game_trailer_actor::slave_trailer::pattern, patterns::game_trailer_actor::slave_trailer::offset
+        );
 
         if ( addr == 0 )
         {
@@ -19,7 +21,9 @@ namespace ets2la_plugin::prism
 
         game_trailer_actor_u::slave_trailer_offset = *reinterpret_cast< uint32_t* >( addr );
 
-        CCore::g_instance->debug( "Found game_trailer_actor offset: {:x}", game_trailer_actor_u::slave_trailer_offset );
+        CCore::g_instance->debug(
+            "Found game_trailer_actor_u::slave_trailer_offset {:x}", game_trailer_actor_u::slave_trailer_offset
+        );
 
         return true;
     }

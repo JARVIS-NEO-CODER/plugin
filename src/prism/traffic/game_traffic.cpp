@@ -1,6 +1,6 @@
-#pragma once
 #include "game_traffic.hpp"
 
+#include "core.hpp"
 #include "memory/memory_utils.hpp"
 #include "patterns.hpp"
 
@@ -10,13 +10,18 @@ namespace ets2la_plugin::prism
 
     bool game_traffic_u::scan_patterns()
     {
-        const auto addr = memory::get_address_for_pattern( patterns::game_traffic, 6 );
+        const auto addr =
+            memory::get_address_for_pattern( patterns::game_traffic::pattern, patterns::game_traffic::offset_instance );
 
         if ( addr == 0 )
         {
             return false;
         }
-        game_traffic_u::instance_ptr_address = addr + *reinterpret_cast< int32_t* >( addr ) + 4;
+        game_traffic_u::instance_ptr_address = memory::get_absolute_address_from_offset( addr );
+
+        CCore::g_instance->debug(
+            "Found game_traffic @ +{:x}", memory::as_offset( game_traffic_u::instance_ptr_address )
+        );
 
         return true;
     }
