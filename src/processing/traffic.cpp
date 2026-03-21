@@ -11,7 +11,7 @@
 #include "processing/traffic.hpp"
 
 #include <vector>
-#include <cmath>
+#include <math.h>
 #include <algorithm>
 
 namespace ets2la_plugin
@@ -56,7 +56,7 @@ namespace ets2la_plugin
         {
             return std::make_pair(trucks, trailers);
         }
-        
+
         static prism::unit_descriptor_t *stored_game_trailer_actor_unit_descriptor = nullptr;
         const auto* vehicles_list = game_ctrl->get_some_nearby_non_ai_vehicles_list();
         if (vehicles_list == nullptr)
@@ -99,8 +99,8 @@ namespace ets2la_plugin
     }
 
     void TrafficProcessor::write_traffic_data(
-        const processor_traffic_data_t& traffic_data, 
-        CMemoryHandler* memory_handler, 
+        const processor_traffic_data_t& traffic_data,
+        CMemoryHandler* memory_handler,
         scs_value_dplacement_t truck_pos
     ) const
     {
@@ -161,7 +161,7 @@ namespace ets2la_plugin
             traffic_objects.push_back(traffic_object);
         }
 
-        
+
         std::sort(traffic_objects.begin(), traffic_objects.end(), [](const processor_traffic_vehicle_object_t& a, const processor_traffic_vehicle_object_t& b) {
             return a.truck_distance < b.truck_distance;
         });
@@ -170,7 +170,7 @@ namespace ets2la_plugin
         // for TMP vehicles is convoluted, so if there's a better way to match trailers to their
         // trucks then do the same as above and ping @Tumppi066 on our Discord server or create a PR.
         // (especially figuring out a way to match the trailers to their trucks)
-        
+
         std::array<TrafficVehicleObject, 40> traffic_vehicle_objects = {};
         int count = 0;
 
@@ -232,7 +232,7 @@ namespace ets2la_plugin
                 const auto* tmp_truck = traffic_object.tmp_truck;
                 prism::placement_t truck_placement;
                 tmp_truck->get_physics_placement(&truck_placement);
-                
+
                 vehicle_object.vehicle = TrafficVehicle{
                     truck_placement.pos.x + 512 * truck_placement.cx,
                     truck_placement.pos.y,
@@ -356,7 +356,7 @@ namespace ets2la_plugin
             }
         }
 
-        // Gather traffic lights and gates from traffic objects list 
+        // Gather traffic lights and gates from traffic objects list
         // (these seem to be mostly gates that are not part of a prefab)
         auto* game_traffic = prism::game_traffic_u::get();
         if (game_traffic != nullptr)
@@ -379,8 +379,8 @@ namespace ets2la_plugin
     }
 
     void TrafficProcessor::write_traffic_objects_data(
-        std::vector<processor_traffic_object_t> traffic_objects, 
-        CMemoryHandler* memory_handler, 
+        std::vector<processor_traffic_object_t> traffic_objects,
+        CMemoryHandler* memory_handler,
         scs_value_dplacement_t truck_pos
     ) const
     {

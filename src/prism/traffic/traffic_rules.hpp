@@ -7,19 +7,15 @@
 
 namespace ets2la_plugin::prism
 {
-    class traffic_rule_t // Size: 0x0068
+    // Size: 0x0068
+    class traffic_rule_t : public /* [0x10] @ 0x00 */ traffic_object_t
     {
     public:
-        char pad_0008[ 24 ];                                     //0x0008 (0x18)
+        char pad_0010[ 16 ];                                     //0x0010 (0x10)
         array_dyn_t< class traffic_item_rule_link_t > N00006B45; //0x0020 (0x20)
         char pad_0040[ 32 ];                                     //0x0040 (0x20)
         uint32_t state;                                          //0x0060 (0x04)
         char pad_0064[ 4 ];                                      //0x0064 (0x04)
-
-        virtual void destructor();
-
-        // traffic_light = 0x2000, automatic_barrier = 0x3000, crossing_object_barrier = 0x4000 ?
-        virtual uint64_t get_type() const;
     };
     static_assert( sizeof( traffic_rule_t ) == 0x68 );
 

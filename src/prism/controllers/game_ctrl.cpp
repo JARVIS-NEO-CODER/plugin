@@ -1,7 +1,7 @@
-#pragma once
 #include "game_ctrl.hpp"
 #include "memory/memory_utils.hpp"
 #include "patterns.hpp"
+#include <cstring>
 #include <stdexcept>
 
 namespace ets2la_plugin::prism
@@ -10,7 +10,9 @@ namespace ets2la_plugin::prism
 
     bool game_ctrl_u::scan_patterns()
     {
-        const auto gps_manager_addr = memory::get_address_for_pattern( patterns::gps_manager, 3 );
+        const auto gps_manager_addr = memory::get_address_for_pattern(
+            patterns::game_ctrl::gps_manager::pattern, patterns::game_ctrl::gps_manager::offset
+        );
         if ( gps_manager_addr == 0 )
         {
             throw std::runtime_error( "Failed to find gps_manager offset" );
@@ -27,7 +29,9 @@ namespace ets2la_plugin::prism
         auto* base_ctrl = base_ctrl_u::get();
 
         if ( base_ctrl == nullptr )
+        {
             return nullptr;
+        }
 
         // base_ctrl has multiple derived units that this ptr could be
         // so we need to check that the current one is 'game_ctrl'

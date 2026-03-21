@@ -59,7 +59,7 @@ namespace ets2la_plugin
                 }
                 else
                 {
-                    return NULL;
+                    return 0;
                 }
             }
 
@@ -84,7 +84,7 @@ namespace ets2la_plugin
                 }
             }
 
-            return NULL;
+            return 0;
         }
     };
 }

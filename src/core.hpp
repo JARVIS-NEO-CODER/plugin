@@ -1,10 +1,8 @@
 ﻿#pragma once
 
-#include <windows.h>
 #include "scssdk_telemetry.h"
 #include "fmt/core.h"
 #include "array"
-#include <map>
 
 #include "memory/virtual/memory_handler.hpp"
 #include "processing/traffic.hpp"
@@ -12,12 +10,7 @@
 namespace ets2la_plugin
 {
 
-    namespace prism
-    {
-        class base_ctrl_u;
-        class game_actor_u;
-        class traffic_object_t;
-    };
+#pragma pack(push, 1)
 
     struct PluginStateData
     {
@@ -25,6 +18,7 @@ namespace ets2la_plugin
         bool steering_overridden;
         bool acceleration_overridden;
     };
+    static_assert(sizeof(PluginStateData) == 6);
 
     struct InputMemData
     {
@@ -36,6 +30,7 @@ namespace ets2la_plugin
         double acceleration_timestamp; // 18
                                        // 26
     };
+    static_assert(sizeof(InputMemData) == 26);
 
     struct CameraMemData
     {
@@ -68,6 +63,7 @@ namespace ets2la_plugin
         float m44;   // 96
                      // 100
     };
+    static_assert(sizeof(CameraMemData) == 100);
 
     struct TrafficVehicle
     {
@@ -117,6 +113,7 @@ namespace ets2la_plugin
         std::array<TrafficVehicleObject, 40> vehicles; // 0
                                                        // 6800
     };
+    static_assert(sizeof(TrafficMemData) == 6960);
 
     struct SemaphoreObject
     {
@@ -140,6 +137,7 @@ namespace ets2la_plugin
     {
         std::array<SemaphoreObject, 40> semaphores; // 1920
     };
+    static_assert(sizeof(SemaphoreMemData) == 1920);
 
     struct RouteTaskObject
     {
@@ -153,6 +151,9 @@ namespace ets2la_plugin
     {
         std::array<RouteTaskObject, 6000> tasks; // 96 000
     };
+    static_assert(sizeof(RouteMemData) == 96'000);
+
+#pragma pack(pop)
 
     class CCore
     {
@@ -168,19 +169,18 @@ namespace ets2la_plugin
 
         mutable bool was_overriding_acceleration = false;
         mutable bool was_overriding_steering = false;
-        
+
         bool scan_for_required_patterns();
 
     public:
         scs_value_dplacement_t truck_pos;
         static CCore *g_instance;
-        
+
         CCore(const scs_telemetry_init_params_v101_t *init_params);
         ~CCore();
-        
+
         void get_camera_data() const;
-        
-        void get_traffic_objects_data() const;
+
         void get_navigation_data() const;
 
         void override_inputs() const;
@@ -194,7 +194,6 @@ namespace ets2la_plugin
         TrafficProcessor *get_traffic_processor() const { return this->traffic_processor_; }
         CMemoryHandler *get_memory_manager() const { return this->memory_manager_; }
 
-        // TODO: change to file only or something
         template <class... T>
         void debug(const char *fmt_s, T &&...args) const
         {

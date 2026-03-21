@@ -1,15 +1,18 @@
+#if defined( _WIN32 )
 #include <Windows.h>
-#include <scssdk_telemetry.h>
+#endif
 #include "scssdk.h"
+#include <memory>
+#include <scssdk_telemetry.h>
 
 #include "./core.hpp"
 
 thread_local std::unique_ptr< ets2la_plugin::CCore > g_core;
 
-__declspec(dllexport) SCSAPI_RESULT scs_telemetry_init( const scs_u32_t version, const scs_telemetry_init_params_t* const params )
+SCSAPI_RESULT scs_telemetry_init( const scs_u32_t version, const scs_telemetry_init_params_t* const params )
 {
     auto* init_params = static_cast< const scs_telemetry_init_params_v100_t* >( params );
-    g_core = std::make_unique< ets2la_plugin::CCore >( init_params );
+    g_core            = std::make_unique< ets2la_plugin::CCore >( init_params );
 
     if ( !g_core->init() )
     {
@@ -19,7 +22,7 @@ __declspec(dllexport) SCSAPI_RESULT scs_telemetry_init( const scs_u32_t version,
     return SCS_RESULT_ok;
 }
 
-__declspec(dllexport) SCSAPI_VOID scs_telemetry_shutdown( void )
+SCSAPI_VOID scs_telemetry_shutdown( void )
 {
     if ( g_core != nullptr )
     {
@@ -27,7 +30,8 @@ __declspec(dllexport) SCSAPI_VOID scs_telemetry_shutdown( void )
     }
 }
 
-BOOL WINAPI DllMain( HMODULE module, DWORD reason_for_call, LPVOID reserved )
-{
-    return TRUE;
-}
+#if defined( _WIN32 )
+BOOL WINAPI DllMain( HMODULE module, DWORD reason_for_call, LPVOID reserved ) { return TRUE; }
+#else
+int main( int argc, const char** argv ) { return 0; }
+#endif

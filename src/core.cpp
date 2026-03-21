@@ -93,7 +93,7 @@ namespace ets2la_plugin
             data.m21 = current_camera->projection_matrix.m21;
             data.m22 = current_camera->projection_matrix.m22;
             data.m23 = current_camera->projection_matrix.m23;
-            data.m24 = current_camera->projection_matrix.m24;   
+            data.m24 = current_camera->projection_matrix.m24;
             data.m31 = current_camera->projection_matrix.m31;
             data.m32 = current_camera->projection_matrix.m32;
             data.m33 = current_camera->projection_matrix.m33;
@@ -263,19 +263,25 @@ namespace ets2la_plugin
     {
         // Local\ETS2LACameraProps
         this->get_camera_data();
-        
+
         // Local\ETS2LATraffic
         auto ai_vehicles = traffic_processor_->get_ai_traffic_data();
+#if defined(_WIN32)
         auto tmp_vehicles = traffic_processor_->get_truckersmp_traffic_data();
+#else
+        // not getting these vehicles because TMP only works with Windows binary and because the `vehicle_shared_u` vtable is quite a bit different
+        std::pair<std::vector<prism::game_physics_vehicle_u*>, std::vector<prism::game_trailer_actor_u*>>
+            tmp_vehicles = {};
+#endif
         traffic_processor_->write_traffic_data(processor_traffic_data_t{ai_vehicles, tmp_vehicles}, memory_manager_, this->truck_pos);
-        
+
         // Local\ETS2LASemaphore
         auto traffic_objects = traffic_processor_->get_traffic_objects_data();
         traffic_processor_->write_traffic_objects_data(traffic_objects, memory_manager_, this->truck_pos);
-        
+
         // Local\ETS2LARoute
         this->get_navigation_data();
-        
+
         // Local\ETS2LAPluginInput
         this->override_inputs();
 
@@ -288,9 +294,6 @@ namespace ets2la_plugin
         try
         {
             prism::base_ctrl_u::scan_patterns();
-            CCore::g_instance->debug(
-                "Found base_ctrl @ +{:x}", memory::as_offset( prism::base_ctrl_u::instance_ptr_address )
-            );
         }
         catch( std::exception& e )
         {
@@ -308,25 +311,13 @@ namespace ets2la_plugin
             return false;
         }
 
-        if ( prism::camera_manager_u::scan_patterns() )
-        {
-            CCore::g_instance->debug(
-                "Found camera_manager @ +{:x}", memory::as_offset( prism::camera_manager_u::instance_ptr_address )
-            );
-        }
-        else
+        if ( !prism::camera_manager_u::scan_patterns() )
         {
             this->error( "Could not find camera_manager patterns" );
             return false;
         }
 
-        if ( prism::game_traffic_u::scan_patterns() )
-        {
-            CCore::g_instance->debug(
-                "Found game_traffic @ +{:x}", memory::as_offset( prism::game_traffic_u::instance_ptr_address )
-            );
-        }
-        else
+        if ( !prism::game_traffic_u::scan_patterns() )
         {
             this->error( "Could not find game_traffic patterns" );
             return false;

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.15)
 
 set(PLUGIN_VERSION_MAJOR 1)
 set(PLUGIN_VERSION_MINOR 58)
-set(PLUGIN_VERSION_PATCH 1)
+set(PLUGIN_VERSION_PATCH 2)
 
 set(GAME_VERSION_MAJOR 1)
 set(GAME_VERSION_MINOR 58)
@@ -10,33 +10,65 @@ set(GAME_VERSION_PATCH x)
 
 project(ets2la_plugin VERSION ${PLUGIN_VERSION_MAJOR}.${PLUGIN_VERSION_MINOR}.${PLUGIN_VERSION_PATCH})
 
-set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+add_library(${CMAKE_PROJECT_NAME} SHARED)
 
-file(GLOB_RECURSE ${CMAKE_PROJECT_NAME}-src src/*.hpp src/*.cpp)
+target_sources(${CMAKE_PROJECT_NAME} PRIVATE
+    ./src/core.cpp
+    ./src/main.cpp
+
+    ./src/memory/memory_utils.shared.cpp
+    ./src/memory/virtual/memory_handler.cpp
+
+    ./src/prism/game_actor.cpp
+    ./src/prism/camera/camera_manager.cpp
+    ./src/prism/controllers/base_ctrl.cpp
+    ./src/prism/controllers/game_ctrl.cpp
+    ./src/prism/navigation/gps_manager.cpp
+    ./src/prism/traffic/game_traffic.cpp
+    ./src/prism/vehicles/game_trailer_actor.cpp
+    ./src/prism/vehicles/vehicle_shared.cpp
+
+    ./src/processing/traffic.cpp
+)
+
+if (WIN32)
+    target_sources(${CMAKE_PROJECT_NAME} PRIVATE
+        ./src/memory/memory_utils.win32.cpp
+    )
+elseif (UNIX AND NOT APPLE)
+    target_sources(${CMAKE_PROJECT_NAME} PRIVATE
+        ./src/memory/memory_utils.linux.cpp
+    )
+endif()
 
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/version.hpp.in
     ${CMAKE_CURRENT_SOURCE_DIR}/src/version.hpp
 )
 
-configure_file(
-    ${CMAKE_CURRENT_SOURCE_DIR}/version.rc.in
-    ${CMAKE_CURRENT_BINARY_DIR}/version.rc
-)
+if (WIN32)
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/version.rc.in
+        ${CMAKE_CURRENT_BINARY_DIR}/version.rc
+    )
+    target_sources(${CMAKE_PROJECT_NAME} PRIVATE
+        ${CMAKE_CURRENT_BINARY_DIR}/version.rc
+        ${CMAKE_CURRENT_SOURCE_DIR}/ets2la_plugin.def
+    )
 
-foreach(_source IN ITEMS ${${CMAKE_PROJECT_NAME}-src})
-    get_filename_component(_source_path "${_source}" PATH)
-    string(REPLACE "${CMAKE_SOURCE_DIR}" "" _group_path "${_source_path}")
-    string(REPLACE "/" "\\" _group_path "${_group_path}")
-    source_group("${_group_path}" FILES "${_source}")
-endforeach()
-
-add_library(${CMAKE_PROJECT_NAME} SHARED ${${CMAKE_PROJECT_NAME}-src} ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
-
-target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE ETS2LA_PLUGIN_EXPORTS UNICODE _UNICODE)
+endif()
 
 target_compile_features(${CMAKE_PROJECT_NAME} PUBLIC cxx_std_17)
-set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+if (WIN32)
+    target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE ETS2LA_PLUGIN_EXPORTS UNICODE _UNICODE)
+    set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+elseif(UNIX)
+    target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE $<$<CONFIG:Debug>:_DEBUG=1>)
+    if (NOT APPLE)
+        target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE rt)
+    endif()
+endif()
 
 add_subdirectory(vendor)
 
