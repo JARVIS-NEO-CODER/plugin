@@ -232,8 +232,9 @@ namespace ets2la_plugin
             this->error("Shared mem file not open.");
             return InputMemData();
         }
+        
         InputMemData memData;
-        memcpy(&memData, static_cast<char*>(state_mmap), sizeof(InputMemData));
+        memcpy(&memData, static_cast<char*>(input_mmap), sizeof(InputMemData));
         return memData;
     }
 
