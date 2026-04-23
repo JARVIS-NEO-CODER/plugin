@@ -19,6 +19,9 @@ namespace ets2la_plugin
         float x; // 0x0000 (0x04)
         float y; // 0x0004 (0x04)
         float z; // 0x0008 (0x04)
+
+        float3_t rotate( const struct quat_t& ) const;
+        float3_t operator+( const float3_t& b ) const;
     };
 
     static_assert(sizeof( float3_t ) == 0x0c);
@@ -74,6 +77,10 @@ namespace ets2la_plugin
             int16_t cx; //0x000C (0x02)
             int16_t cz; //0x000E (0x02)
             quat_t rot; //0x0010 (0x10)
+
+            float3_t to_global_position() const;
+            float get_distance_to(const float3_t position) const;
+
         };
         static_assert(sizeof(placement_t) == 0x20);
 

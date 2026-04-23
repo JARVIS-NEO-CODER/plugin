@@ -115,6 +115,30 @@ namespace ets2la_plugin
     };
     static_assert(sizeof(TrafficMemData) == 6960);
 
+    struct ParkedVehicle
+    {
+        float x;               // 0
+        float y;               // 4
+        float z;               // 8
+        float qw;              // 12
+        float qx;              // 16
+        float qy;              // 20
+        float qz;              // 24
+        float width;           // 28
+        float height;          // 32
+        float length;          // 36
+        short id;              // 40
+        bool is_trailer;       // 42
+                               // 43
+    };
+
+    struct ParkedVehiclesMemData
+    {
+        std::array<ParkedVehicle, 40> parked_vehicles; // 0
+                                                       // 1720
+    };
+    static_assert(sizeof(ParkedVehiclesMemData) == 1720);
+
     struct SemaphoreObject
     {
         float x;                // 0

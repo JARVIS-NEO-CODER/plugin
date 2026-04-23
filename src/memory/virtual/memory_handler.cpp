@@ -61,6 +61,10 @@ namespace ets2la_plugin
             L"ffffffffffffssbbffffffffffffffffffffffffffffff",
             40, traffic_mmap
         );
+        this->initialize_memory_file_multiple(parked_vehicles_mem_name,
+            L"ffffffffffsb",
+            40, parked_vehicles_mmap
+        );
         this->initialize_memory_file_multiple(semaphore_mem_name, L"fffssffffifii", 40, semaphore_mmap);
         this->initialize_memory_file_multiple(route_mem_name, L"lff", 6000, route_mmap);
 
@@ -87,6 +91,11 @@ namespace ets2la_plugin
         if (traffic_mmap != nullptr) {
             this->unmap_file(traffic_mmap, traffic_mem_name, sizeof(TrafficMemData));
             traffic_mmap = nullptr;
+        }
+
+        if (parked_vehicles_mmap != nullptr) {
+            this->unmap_file(parked_vehicles_mmap, parked_vehicles_mem_name, sizeof(ParkedVehiclesMemData));
+            parked_vehicles_mmap = nullptr;
         }
 
         if (semaphore_mmap != nullptr) {
@@ -232,7 +241,7 @@ namespace ets2la_plugin
             this->error("Shared mem file not open.");
             return InputMemData();
         }
-        
+
         InputMemData memData;
         memcpy(&memData, static_cast<char*>(input_mmap), sizeof(InputMemData));
         return memData;
@@ -265,6 +274,17 @@ namespace ets2la_plugin
         }
 
         memcpy(static_cast<char*>(traffic_mmap), &data, sizeof(TrafficMemData));
+    }
+
+    void CMemoryHandler::write_parked_vehicles_mem(const ParkedVehiclesMemData data) const
+    {
+        if (parked_vehicles_mmap == nullptr)
+        {
+            this->error("Parked vehicles shared mem file not open.");
+            return;
+        }
+
+        memcpy(static_cast<char*>(parked_vehicles_mmap), &data, sizeof(ParkedVehiclesMemData));
     }
 
     void CMemoryHandler::write_semaphore_mem(const SemaphoreMemData data) const

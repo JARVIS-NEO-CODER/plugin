@@ -10,6 +10,7 @@ namespace ets2la_plugin
     struct InputMemData;
     struct CameraMemData;
     struct TrafficMemData;
+    struct ParkedVehiclesMemData;
     struct SemaphoreMemData;
     struct RouteMemData;
 
@@ -17,19 +18,21 @@ namespace ets2la_plugin
     {
     private:
 
-        void* state_mmap     = nullptr;
-        void* input_mmap     = nullptr;
-        void* camera_mmap    = nullptr;
-        void* traffic_mmap   = nullptr;
-        void* semaphore_mmap = nullptr;
-        void* route_mmap     = nullptr;
+        void* state_mmap           = nullptr;
+        void* input_mmap           = nullptr;
+        void* camera_mmap          = nullptr;
+        void* traffic_mmap         = nullptr;
+        void* parked_vehicles_mmap = nullptr;
+        void* semaphore_mmap       = nullptr;
+        void* route_mmap           = nullptr;
 
-        const wchar_t* state_mem_name      = L"ETS2LAPluginStatus";
-        const wchar_t* input_mem_name      = L"ETS2LAPluginInput";
-        const wchar_t* camera_mem_name     = L"ETS2LACameraProps";
-        const wchar_t* traffic_mem_name    = L"ETS2LATraffic";
-        const wchar_t* semaphore_mem_name  = L"ETS2LASemaphore";
-        const wchar_t* route_mem_name      = L"ETS2LARoute";
+        const wchar_t* state_mem_name           = L"ETS2LAPluginStatus";
+        const wchar_t* input_mem_name           = L"ETS2LAPluginInput";
+        const wchar_t* camera_mem_name          = L"ETS2LACameraProps";
+        const wchar_t* traffic_mem_name         = L"ETS2LATraffic";
+        const wchar_t* parked_vehicles_mem_name = L"ETS2LAParkedVehicles";
+        const wchar_t* semaphore_mem_name       = L"ETS2LASemaphore";
+        const wchar_t* route_mem_name           = L"ETS2LARoute";
 
         bool is_running_under_wine = false;
 
@@ -65,6 +68,7 @@ namespace ets2la_plugin
         void write_state_mem(const PluginStateData data) const;
         void write_camera_mem(const CameraMemData data) const;
         void write_traffic_mem(const TrafficMemData data) const;
+        void write_parked_vehicles_mem(const ParkedVehiclesMemData data) const;
         void write_semaphore_mem(const SemaphoreMemData data) const;
         void write_route_mem(const RouteMemData data) const;
     };

@@ -6,17 +6,18 @@
 
 namespace ets2la_plugin::prism
 {
-    class game_traffic_u : public traffic_u // Size: 0x05F8
+    // Size: 0x0658
+    class game_traffic_u : public /* [0x638] @ 0x00 */ traffic_u
     {
     public:
-        char pad_05D8[ 32 ]; //0x05D8 (0x20)
+        array_dyn_t< class traffic_world_rule_t* > traffic_world_rules_2; // 0x0638 (0x20)
 
         static uint64_t instance_ptr_address;
 
         static bool scan_patterns();
         static game_traffic_u* get();
     };
-    static_assert( sizeof( game_traffic_u ) == 0x5F8 );
+    static_assert( sizeof( game_traffic_u ) == 0x658 );
 }
 
 #pragma pack( pop )

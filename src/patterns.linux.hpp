@@ -69,6 +69,15 @@ namespace ets2la_plugin::patterns
         }
     }
 
+    namespace game_physics_vehicle
+    {
+        namespace trailer
+        {
+            inline constexpr auto pattern = "48 8b 83 ? ? ? ? 66 0f ef c0 48 85 c0 74 ? f3 0f 10 80 ? ? ? ? f3";
+            inline constexpr auto offset  = 3;
+        }
+    }
+
     namespace game_trailer_actor
     {
         namespace slave_trailer

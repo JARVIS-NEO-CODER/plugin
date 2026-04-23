@@ -25,7 +25,7 @@ namespace ets2la_plugin::prism
     {
     public:
         char pad_0010[ 8 ]; // 0x0010 (0x08)
-        class aabox_t dimensions; // 0x0018 (0x18)
+        class aabox_t aabox; // 0x0018 (0x18)
         class physics_actor_physx_t* dynamic_physics_actor; // 0x0030 (0x08)
         char pad_0038[ 8 ]; // 0x0038 (0x08)
         class array_dyn_t< class physics_shape_t* > physics_shapes; // 0x0040 (0x20)

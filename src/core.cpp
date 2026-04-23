@@ -11,21 +11,10 @@
 #include "prism/controllers/game_ctrl.hpp"
 #include "prism/camera/camera_manager.hpp"
 #include "prism/traffic/game_traffic.hpp"
-#include "prism/traffic/traffic_ai_trailer.hpp"
-#include "prism/traffic/traffic_ai_vehicle.hpp"
-#include "prism/traffic/traffic_objects.hpp"
-#include "prism/traffic/traffic_rules.hpp"
 
-#include "prism/management/item/kdop_item.hpp"
 #include "prism/management/item/node_item.hpp"
-#include "prism/management/item/prefab_item.hpp"
-#include "prism/management/item/segment.hpp"
-#include "prism/management/item/semaphore_instance.hpp"
-
 #include "prism/navigation/route_task.hpp"
 
-#include "prism/vehicles/game_physics_vehicle.hpp"
-#include "prism/vehicles/game_trailer_actor.hpp"
 #include "prism/game_actor.hpp"
 
 #include "processing/traffic.hpp"
@@ -264,20 +253,8 @@ namespace ets2la_plugin
         // Local\ETS2LACameraProps
         this->get_camera_data();
 
-        // Local\ETS2LATraffic
-        auto ai_vehicles = traffic_processor_->get_ai_traffic_data();
-#if defined(_WIN32)
-        auto tmp_vehicles = traffic_processor_->get_truckersmp_traffic_data();
-#else
-        // not getting these vehicles because TMP only works with Windows binary and because the `vehicle_shared_u` vtable is quite a bit different
-        std::pair<std::vector<prism::game_physics_vehicle_u*>, std::vector<prism::game_trailer_actor_u*>>
-            tmp_vehicles = {};
-#endif
-        traffic_processor_->write_traffic_data(processor_traffic_data_t{ai_vehicles, tmp_vehicles}, memory_manager_, this->truck_pos);
-
-        // Local\ETS2LASemaphore
-        auto traffic_objects = traffic_processor_->get_traffic_objects_data();
-        traffic_processor_->write_traffic_objects_data(traffic_objects, memory_manager_, this->truck_pos);
+        // Local\ETS2LATraffic, Local\ETS2LASemaphore, Local\ETS2LAParkedVehicles
+        traffic_processor_->tick(this->truck_pos);
 
         // Local\ETS2LARoute
         this->get_navigation_data();
@@ -339,6 +316,11 @@ namespace ets2la_plugin
             return false;
         }
 
+        if ( !prism::game_physics_vehicle_u::scan_patterns() )
+        {
+            this->error( "Could not find game_physics_vehicle patterns" );
+            return false;
+        }
         if ( !prism::game_trailer_actor_u::scan_patterns() )
         {
             this->error( "Could not find game_trailer_actor patterns" );
@@ -386,7 +368,7 @@ namespace ets2la_plugin
         this->memory_manager_ = new CMemoryHandler(scs_log_);
         this->memory_manager_->init();
 
-        this->traffic_processor_ = new TrafficProcessor(scs_log_);
+        this->traffic_processor_ = new TrafficProcessor(scs_log_, this->memory_manager_);
 
         if (this->init_params_->register_for_event(SCS_TELEMETRY_EVENT_frame_end, telemetry_tick, nullptr) != SCS_RESULT_ok)
         {
