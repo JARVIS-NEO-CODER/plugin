@@ -52,6 +52,18 @@ Please see the [original repository](https://github.com/dariowouters/ts-extra-ut
         # x, y, z, qw, qx, qy, qz, width, height, length
     ```
 
+- [x] Expose a virtual memory file at `Local\ETS2LAParkedVehicles` to get the **closest 40 traffic parked vehicles**.
+    ```python
+    import time, mmap
+    buf = mmap.mmap(0, 1720, r"Local\ETS2LAParkedVehicles")
+    while True:
+        vehicle_format = "ffffffffffhb"
+        total_format = "=" + vehicle_format * 40
+        data = struct.unpack(total_format, buf[:1720])
+        data # vehicle * 40
+        # x, y, z, qw, qx, qy, qz, width, height, length, id, is_trailer
+    ```
+
 - [x] Expose a virtual memory file at `Local\ETS2LASemaphore` to get the **closest 40 traffic lights and gates**.
     ```python
     import time, mmap
@@ -79,7 +91,7 @@ Please see the [original repository](https://github.com/dariowouters/ts-extra-ut
         # traffic_light (value 9 == 1):
         # x, y, z, cx, cz, qw, qx, qy, qz, type, time_remaining (in state), state, id
         # gate (value 9 == 2):
-        # x, y, z, cx, cz, qw, qx, qy, qz, type, time_remaining (in state), state, id 
+        # x, y, z, cx, cz, qw, qx, qy, qz, type, time_remaining (in state), state, id
     ```
 - [x] Expose a virtual memory file at `Local\ETS2LARoute` to output the **current navigation route**. NOTE: Limited to 6000 items! (mods might go over)
     ```python

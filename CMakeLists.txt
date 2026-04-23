@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.15)
 
 set(PLUGIN_VERSION_MAJOR 1)
 set(PLUGIN_VERSION_MINOR 58)
-set(PLUGIN_VERSION_PATCH 2)
+set(PLUGIN_VERSION_PATCH 3)
 
 set(GAME_VERSION_MAJOR 1)
 set(GAME_VERSION_MINOR 58)
@@ -19,6 +19,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ./src/memory/memory_utils.shared.cpp
     ./src/memory/virtual/memory_handler.cpp
 
+    ./src/prism/common.cpp
     ./src/prism/game_actor.cpp
     ./src/prism/camera/camera_manager.cpp
     ./src/prism/controllers/base_ctrl.cpp
@@ -26,6 +27,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ./src/prism/navigation/gps_manager.cpp
     ./src/prism/traffic/game_traffic.cpp
     ./src/prism/vehicles/game_trailer_actor.cpp
+    ./src/prism/vehicles/game_physics_vehicle.cpp
     ./src/prism/vehicles/vehicle_shared.cpp
 
     ./src/processing/traffic.cpp

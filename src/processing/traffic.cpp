@@ -1,21 +1,44 @@
+#include "traffic.hpp"
+
 #include "core.hpp"
 
+#include "prism/game_actor.hpp"
 #include "prism/traffic/game_traffic.hpp"
-#include "prism/traffic/traffic_rules.hpp"
+#include "prism/traffic/objects/traffic_light.hpp"
+#include "prism/traffic/objects/traffic_parked_actor.hpp"
+#include "prism/traffic/objects/traffic_parked_trailer.hpp"
+#include "prism/traffic/objects/traffic_player_vehicle.hpp"
+#include "prism/traffic/objects/traffic_player_trailer.hpp"
 #include "prism/controllers/game_ctrl.hpp"
 #include "prism/management/item/kdop_item.hpp"
 #include "prism/management/item/prefab_item.hpp"
 #include "prism/management/item/segment.hpp"
 #include "prism/management/item/semaphore_instance.hpp"
+#include "prism/vehicles/game_physics_vehicle.hpp"
+#include "prism/vehicles/game_trailer_actor.hpp"
 
-#include "processing/traffic.hpp"
-
-#include <vector>
 #include <math.h>
 #include <algorithm>
+#include <unordered_set>
 
 namespace ets2la_plugin
 {
+    // vehicle coordinates are not at the center of the vehicle, so we use the aabox to calculate the center
+    float3_t get_center_coords(const prism::placement_t& placement, const prism::aabox_t& aabox)
+    {
+        const float width = abs(aabox.start.x - aabox.end.x);
+        const float height = abs(aabox.start.y - aabox.end.y);
+        const float length = abs(aabox.start.z - aabox.end.z);
+
+        float3_t offset = {
+            aabox.start.x + (width / 2.f),
+            aabox.start.y + (height / 2.f),
+            aabox.start.z + (length / 2.f),
+        };
+
+        return placement.to_global_position() + offset.rotate(placement.rot);
+    }
+
     short TrafficProcessor::get_uid_for_vehicle(uintptr_t vehicle_ptr) const
     {
         auto it = vehicle_uids.find(vehicle_ptr);
@@ -31,37 +54,148 @@ namespace ets2la_plugin
         }
     }
 
-    std::vector<prism::traffic_ai_vehicle_t*> TrafficProcessor::get_ai_traffic_data() const
+    void TrafficProcessor::clear_data()
     {
-        std::vector<prism::traffic_ai_vehicle_t*> vehicles;
-        auto* game_traffic = prism::game_traffic_u::get();
-        if (game_traffic == nullptr)
-            return vehicles;
-
-        for (const auto& ai_vehicle : game_traffic->ai_vehicles)
-        {
-            vehicles.push_back(ai_vehicle.vehicle);
-        }
-
-        return vehicles;
+        this->active_actors.clear();
+        this->parked_actors.clear();
+        this->tmp_vehicles.clear();
+        this->tmp_trailers.clear();
+        this->semaphore_objects.clear();
     }
 
-    std::pair<std::vector<prism::game_physics_vehicle_u*>, std::vector<prism::game_trailer_actor_u*>> TrafficProcessor::get_truckersmp_traffic_data() const
+    void TrafficProcessor::process_traffic_object(const prism::traffic_object_t* traffic_object, const uint32_t id)
     {
-        std::vector<prism::game_physics_vehicle_u*> trucks;
-        std::vector<prism::game_trailer_actor_u*> trailers;
+        const auto object_type = traffic_object->get_type();
 
+        if (object_type == prism::ETrafficObjectType::traffic_ai_vehicle)
+        {
+            // special transport escort vehicles (and maybe some other vehicles, not sure)
+            const auto ai_vehicle = static_cast<const prism::traffic_ai_vehicle_t*>(traffic_object);
+
+            this->active_actors.emplace_back(
+                processor_active_actor_object_t{
+                    {
+                        false,
+                        ai_vehicle->placement.get_distance_to(this->truck_pos),
+                        ai_vehicle
+                    },
+                    ai_vehicle->physics->speed,
+                    ai_vehicle->physics->acceleration
+                }
+            );
+        }
+        else if (object_type == prism::ETrafficObjectType::traffic_ai_trailer)
+        {
+            // TODO: check if this is just trailers that are attached to `traffic_ai_vehicle`s or do any loose trailers exist?
+        }
+        else if (object_type == prism::ETrafficObjectType::traffic_parked_vehicle ||
+                 object_type == prism::ETrafficObjectType::traffic_parked_trailer)
+        {
+            // traffic_parked_* objects are stored as `traffic_parked_actor_t`s
+            const auto* traffic_actor = static_cast<const prism::traffic_parked_actor_t*>(traffic_object);
+
+            this->parked_actors.emplace_back(
+                processor_actor_object_t{
+                    object_type == prism::ETrafficObjectType::traffic_parked_trailer,
+                    traffic_actor->placement.get_distance_to(this->truck_pos),
+                    traffic_actor
+                }
+            );
+
+            auto slave_trailer = traffic_actor->slave_trailer;
+            while (slave_trailer != nullptr)
+            {
+                this->parked_actors.emplace_back(
+                    processor_actor_object_t{
+                        true,
+                        slave_trailer->placement.get_distance_to(this->truck_pos),
+                        traffic_actor
+                    }
+                );
+                slave_trailer = slave_trailer->slave_trailer;
+            }
+        }
+        else if (object_type == prism::ETrafficObjectType::traffic_semaphore_actor)
+        {
+            auto* semaphore_actor = static_cast<const prism::traffic_semaphore_actor_t*>(traffic_object);
+
+            semaphore_objects.push_back(processor_semaphore_object_t{
+                id,
+                semaphore_actor->placement.get_distance_to(this->truck_pos),
+                semaphore_actor
+            });
+        }
+    }
+
+    void TrafficProcessor::get_ai_traffic_data()
+    {
+
+        auto* game_traffic = prism::game_traffic_u::get();
+        if (game_traffic == nullptr)
+        {
+            return;
+        }
+
+        for (const auto& spawned_vehicle : game_traffic->spawned_vehicles_1)
+        {
+            active_actors.emplace_back(processor_active_actor_object_t{
+                {
+                    false,
+                    spawned_vehicle.vehicle->placement.get_distance_to(this->truck_pos),
+                    spawned_vehicle.vehicle,
+                },
+                spawned_vehicle.vehicle->physics->speed,
+                spawned_vehicle.vehicle->physics->acceleration
+            });
+        }
+
+        for (const auto& spawned_vehicle : game_traffic->spawned_vehicles_2)
+        {
+            active_actors.emplace_back(processor_active_actor_object_t{
+                {
+                    false,
+                    spawned_vehicle.vehicle->placement.get_distance_to(this->truck_pos),
+                    spawned_vehicle.vehicle,
+                },
+                spawned_vehicle.vehicle->physics->speed,
+                spawned_vehicle.vehicle->physics->acceleration
+            });
+        }
+
+        for (auto* traffic_object : game_traffic->traffic_objects_1)
+        {
+            const auto object_type = traffic_object->get_type();
+            if (object_type != prism::ETrafficObjectType::traffic_ai_vehicle)
+            {
+                continue;
+            }
+            // special transport escort vehicles (and maybe some other vehicles, not sure)
+            const auto ai_vehicle = reinterpret_cast<prism::traffic_ai_vehicle_t*>(traffic_object);
+            active_actors.emplace_back(processor_active_actor_object_t{
+                {
+                    false,
+                    ai_vehicle->placement.get_distance_to(this->truck_pos),
+                    ai_vehicle,
+                },
+                ai_vehicle->physics->speed,
+                ai_vehicle->physics->acceleration
+            });
+        }
+    }
+
+    void TrafficProcessor::get_truckersmp_traffic_data()
+    {
         auto* game_ctrl = prism::game_ctrl_u::get();
         if (game_ctrl == nullptr)
         {
-            return std::make_pair(trucks, trailers);
+            return;
         }
 
         static prism::unit_descriptor_t *stored_game_trailer_actor_unit_descriptor = nullptr;
         const auto* vehicles_list = game_ctrl->get_some_nearby_non_ai_vehicles_list();
         if (vehicles_list == nullptr)
         {
-            return std::make_pair(trucks, trailers);
+            return;
         }
 
 
@@ -84,25 +218,19 @@ namespace ets2la_plugin
             if (is_trailer)
             {
                 prism::game_trailer_actor_u* trailer = reinterpret_cast<prism::game_trailer_actor_u *>(node->item);
-                trailers.push_back(trailer);
+                tmp_trailers.push_back(trailer);
             }
             else
             {
                 auto *truck = reinterpret_cast<prism::game_physics_vehicle_u *>(node->item);
-                trucks.push_back(truck);
+                tmp_vehicles.push_back(truck);
             }
 
             node = node->next;
         }
-
-        return std::make_pair(trucks, trailers);
     }
 
-    void TrafficProcessor::write_traffic_data(
-        const processor_traffic_data_t& traffic_data,
-        CMemoryHandler* memory_handler,
-        scs_value_dplacement_t truck_pos
-    ) const
+    void TrafficProcessor::write_active_traffic_data() const
     {
         std::vector<processor_traffic_vehicle_object_t> traffic_objects;
 
@@ -110,20 +238,19 @@ namespace ets2la_plugin
         // out a better way to do this yet, if you can think of a better sorting algorithm
         // then please ping @Tumppi066 on our Discord server or create a PR.
 
-        for (const auto& ai_vehicle : traffic_data.ai_vehicles)
+        for (const auto& traffic_actor : this->active_actors)
         {
             processor_traffic_vehicle_object_t traffic_object;
             traffic_object.type = 0;
-            traffic_object.ai_vehicle = ai_vehicle;
-
-            float dx = (ai_vehicle->placement.cx * 512 + ai_vehicle->placement.pos.x) - truck_pos.position.x;
-            float dz = (ai_vehicle->placement.cz * 512 + ai_vehicle->placement.pos.z) - truck_pos.position.z;
-            traffic_object.truck_distance = std::sqrt(dx * dx + dz * dz);
+            traffic_object.traffic_actor = traffic_actor.traffic_actor;
+            traffic_object.truck_distance = traffic_actor.distance;
+            traffic_object.speed = traffic_actor.speed;
+            traffic_object.acceleration = traffic_actor.acceleration;
 
             traffic_objects.push_back(traffic_object);
         }
 
-        for (const auto& truck : traffic_data.tmp_vehicles.first)
+        for (const auto& truck : this->tmp_vehicles)
         {
             processor_traffic_vehicle_object_t traffic_object;
             traffic_object.type = 1;
@@ -131,25 +258,19 @@ namespace ets2la_plugin
 
             prism::placement_t truck_placement;
             truck->get_physics_placement(&truck_placement);
-
-            float dx = (truck_placement.cx * 512 + truck_placement.pos.x) - truck_pos.position.x;
-            float dz = (truck_placement.cz * 512 + truck_placement.pos.z) - truck_pos.position.z;
-            traffic_object.truck_distance = std::sqrt(dx * dx + dz * dz);
+            traffic_object.truck_distance = truck_placement.get_distance_to(this->truck_pos);
 
             traffic_objects.push_back(traffic_object);
         }
 
-        for (const auto& trailer : traffic_data.tmp_vehicles.second)
+        for (const auto& trailer : this->tmp_trailers)
         {
             processor_traffic_vehicle_object_t traffic_object;
             traffic_object.type = 2;
 
             prism::placement_t trailer_placement;
             trailer->get_physics_placement(&trailer_placement);
-
-            float dx = (trailer_placement.cx * 512 + trailer_placement.pos.x) - truck_pos.position.x;
-            float dz = (trailer_placement.cz * 512 + trailer_placement.pos.z) - truck_pos.position.z;
-            traffic_object.truck_distance = std::sqrt(dx * dx + dz * dz);
+            traffic_object.truck_distance = trailer_placement.get_distance_to(this->truck_pos);
 
             auto* trailer_obj = trailer;
             while (trailer_obj != nullptr)
@@ -182,46 +303,48 @@ namespace ets2la_plugin
             TrafficVehicleObject vehicle_object = {};
             vehicle_object.vehicle.id = -1;
 
-            if (traffic_object.type == 0) // ai vehicle
+            if (traffic_object.type == 0) // traffic_actor (ai vehicle/convoy players/escort vehicles)
             {
-                const auto* ai_vehicle = traffic_object.ai_vehicle;
+                const auto* traffic_actor = traffic_object.traffic_actor;
+                const auto position = get_center_coords(traffic_actor->placement, traffic_actor->aabox);
                 vehicle_object.vehicle = TrafficVehicle{
-                    ai_vehicle->placement.pos.x + 512 * ai_vehicle->placement.cx,
-                    ai_vehicle->placement.pos.y,
-                    ai_vehicle->placement.pos.z + 512 * ai_vehicle->placement.cz,
-                    ai_vehicle->placement.rot.w,
-                    ai_vehicle->placement.rot.x,
-                    ai_vehicle->placement.rot.y,
-                    ai_vehicle->placement.rot.z,
-                    ai_vehicle->physics_data->bounding_box.x, // width
-                    ai_vehicle->physics_data->bounding_box.y, // height
-                    ai_vehicle->physics_data->bounding_box.z, // length
-                    ai_vehicle->physics_data->speed,          // speed
-                    ai_vehicle->physics_data->acceleration,   // acceleration
+                    position.x,
+                    position.y,
+                    position.z,
+                    traffic_actor->placement.rot.w,
+                    traffic_actor->placement.rot.x,
+                    traffic_actor->placement.rot.y,
+                    traffic_actor->placement.rot.z,
+                    abs(traffic_actor->aabox.start.x - traffic_actor->aabox.end.x), // width
+                    abs(traffic_actor->aabox.start.y - traffic_actor->aabox.end.y), // height
+                    abs(traffic_actor->aabox.start.z - traffic_actor->aabox.end.z), // length
+                    traffic_object.speed,          // speed
+                    traffic_object.acceleration,   // acceleration
                     0,                                        // trailer_count
-                    get_uid_for_vehicle(reinterpret_cast<uintptr_t>(ai_vehicle)), // id
+                    get_uid_for_vehicle(reinterpret_cast<uintptr_t>(traffic_actor)), // id
                     false,                                    // is_tmp
                     false                                     // is_trailer
                 };
 
-                auto trailer = ai_vehicle->trailer;
+                auto trailer = traffic_actor->slave;
                 int i = 0;
                 while (trailer != nullptr && i < 3)
                 {
+                    const auto trailer_position = get_center_coords(trailer->placement, trailer->aabox);
                     vehicle_object.trailers[i] = TrafficTrailer{
-                        trailer->placement.pos.x + 512 * trailer->placement.cx,
-                        trailer->placement.pos.y,
-                        trailer->placement.pos.z + 512 * trailer->placement.cz,
+                        trailer_position.x,
+                        trailer_position.y,
+                        trailer_position.z,
                         trailer->placement.rot.w,
                         trailer->placement.rot.x,
                         trailer->placement.rot.y,
                         trailer->placement.rot.z,
-                        trailer->physics_data->bounding_box.x, // width
-                        trailer->physics_data->bounding_box.y, // height
-                        trailer->physics_data->bounding_box.z  // length
+                        abs(trailer->aabox.start.x - trailer->aabox.end.x), // width
+                        abs(trailer->aabox.start.y - trailer->aabox.end.y), // height
+                        abs(trailer->aabox.start.z - trailer->aabox.end.z), // length
                     };
 
-                    trailer = trailer->slave_trailer;
+                    trailer = trailer->slave;
                     i++;
                 }
 
@@ -232,18 +355,18 @@ namespace ets2la_plugin
                 const auto* tmp_truck = traffic_object.tmp_truck;
                 prism::placement_t truck_placement;
                 tmp_truck->get_physics_placement(&truck_placement);
-
+                const auto truck_position = get_center_coords(truck_placement, tmp_truck->aabox);
                 vehicle_object.vehicle = TrafficVehicle{
-                    truck_placement.pos.x + 512 * truck_placement.cx,
-                    truck_placement.pos.y,
-                    truck_placement.pos.z + 512 * truck_placement.cz,
+                    truck_position.x,
+                    truck_position.y,
+                    truck_position.z,
                     truck_placement.rot.w,
                     truck_placement.rot.x,
                     truck_placement.rot.y,
                     truck_placement.rot.z,
-                    abs(tmp_truck->dimensions.start.x - tmp_truck->dimensions.end.x), // width
-                    abs(tmp_truck->dimensions.start.y - tmp_truck->dimensions.end.y), // height
-                    abs(tmp_truck->dimensions.start.z - tmp_truck->dimensions.end.z), // length
+                    abs(tmp_truck->aabox.start.x - tmp_truck->aabox.end.x), // width
+                    abs(tmp_truck->aabox.start.y - tmp_truck->aabox.end.y), // height
+                    abs(tmp_truck->aabox.start.z - tmp_truck->aabox.end.z), // length
                     0,                               // speed (null)
                     tmp_truck->linear_acceleration.x + tmp_truck->linear_acceleration.y + tmp_truck->linear_acceleration.z,  // acceleration (null)
                     0,                               // trailer_count
@@ -260,18 +383,18 @@ namespace ets2la_plugin
 
                 prism::placement_t trailer_placement;
                 tmp_trailer->get_physics_placement(&trailer_placement);
-
+                const auto trailer_position = get_center_coords(trailer_placement, tmp_trailer->aabox);
                 vehicle_object.vehicle = TrafficVehicle{
-                    trailer_placement.pos.x + 512 * trailer_placement.cx,
-                    trailer_placement.pos.y,
-                    trailer_placement.pos.z + 512 * trailer_placement.cz,
+                    trailer_position.x,
+                    trailer_position.y,
+                    trailer_position.z,
                     trailer_placement.rot.w,
                     trailer_placement.rot.x,
                     trailer_placement.rot.y,
                     trailer_placement.rot.z,
-                    abs(tmp_trailer->dimensions.start.x - tmp_trailer->dimensions.end.x), // width
-                    abs(tmp_trailer->dimensions.start.y - tmp_trailer->dimensions.end.y), // height
-                    abs(tmp_trailer->dimensions.start.z - tmp_trailer->dimensions.end.z), // length
+                    abs(tmp_trailer->aabox.start.x - tmp_trailer->aabox.end.x), // width
+                    abs(tmp_trailer->aabox.start.y - tmp_trailer->aabox.end.y), // height
+                    abs(tmp_trailer->aabox.start.z - tmp_trailer->aabox.end.z), // length
                     0,                               // speed (null)
                     tmp_trailer->linear_acceleration.x + tmp_trailer->linear_acceleration.y + tmp_trailer->linear_acceleration.z,  // acceleration (null)
                     0,                               // trailer_count
@@ -285,18 +408,18 @@ namespace ets2la_plugin
                     const auto* trailer = traffic_object.tmp_trailers[i];
                     prism::placement_t trailer_placement;
                     trailer->get_physics_placement(&trailer_placement);
-
+                    const auto trailer_position = get_center_coords(trailer_placement, trailer->aabox);
                     vehicle_object.trailers[i-1] = TrafficTrailer{
-                        trailer_placement.pos.x + 512 * trailer_placement.cx,
-                        trailer_placement.pos.y,
-                        trailer_placement.pos.z + 512 * trailer_placement.cz,
+                        trailer_position.x,
+                        trailer_position.y,
+                        trailer_position.z,
                         trailer_placement.rot.w,
                         trailer_placement.rot.x,
                         trailer_placement.rot.y,
                         trailer_placement.rot.z,
-                        abs(trailer->dimensions.start.x - trailer->dimensions.end.x), // width
-                        abs(trailer->dimensions.start.y - trailer->dimensions.end.y), // height
-                        abs(trailer->dimensions.start.z - trailer->dimensions.end.z)  // length
+                        abs(trailer->aabox.start.x - trailer->aabox.end.x), // width
+                        abs(trailer->aabox.start.y - trailer->aabox.end.y), // height
+                        abs(trailer->aabox.start.z - trailer->aabox.end.z)  // length
                     };
                 }
             }
@@ -310,22 +433,24 @@ namespace ets2la_plugin
             count++;
         }
 
-        memory_handler->write_traffic_mem(TrafficMemData{
+        memory_handler_->write_traffic_mem(TrafficMemData{
             traffic_vehicle_objects
         });
     }
 
-    std::vector<processor_traffic_object_t> TrafficProcessor::get_traffic_objects_data() const
+    void TrafficProcessor::get_traffic_objects_data()
     {
-        std::vector<processor_traffic_object_t> traffic_objects;
-
         auto* base_ctrl = prism::base_ctrl_u::get();
         if (base_ctrl == nullptr)
-            return traffic_objects;
+        {
+            return;
+        }
 
         auto* nearby_kdop_items = base_ctrl->get_nearby_kdop_items();
         if ( nearby_kdop_items == nullptr )
-            return traffic_objects;
+        {
+            return;
+        }
 
         // Gather traffic lights and gates from prefabs
         for (const auto *kdop_item : *nearby_kdop_items )
@@ -343,67 +468,37 @@ namespace ets2la_plugin
 
             for (const auto &semaphore_instance : prefab_kdop_item->segment->semaphore_instances)
             {
-                if (semaphore_instance.actor == nullptr || semaphore_instance.actor->get_type() != 0x07) // we only want type 0x07 (traffic_semaphore_actor_t)
+                if (semaphore_instance.actor == nullptr)
                 {
                     continue;
                 }
-                auto* semaphore_actor = static_cast<const prism::traffic_semaphore_actor_t*>(semaphore_instance.actor);
-                traffic_objects.push_back(processor_traffic_object_t{
-                    semaphore_instance.id,
-                    0, // distance is calculated in write_traffic_object_data
-                    semaphore_actor
-                });
+                this->process_traffic_object(semaphore_instance.actor, semaphore_instance.id);
             }
         }
 
-        // Gather traffic lights and gates from traffic objects list
-        // (these seem to be mostly gates that are not part of a prefab)
         auto* game_traffic = prism::game_traffic_u::get();
         if (game_traffic != nullptr)
         {
-            for (const auto* traffic_object : game_traffic->traffic_objects)
+            for (const auto* traffic_object : game_traffic->traffic_objects_1)
             {
-                if (traffic_object->get_type() != 0x07)
-                    continue; // we only want type 0x07 (traffic_semaphore_actor_t)
-
-                auto* semaphore_actor = static_cast<const prism::traffic_semaphore_actor_t*>(traffic_object);
-                traffic_objects.push_back(processor_traffic_object_t{
-                    0, // id is not available for traffic objects that are not part of a prefab
-                    0, // distance is calculated in write_traffic_object_data
-                    semaphore_actor
-                });
+                this->process_traffic_object(traffic_object);
             }
         }
-
-        return traffic_objects;
     }
 
-    void TrafficProcessor::write_traffic_objects_data(
-        std::vector<processor_traffic_object_t> traffic_objects,
-        CMemoryHandler* memory_handler,
-        scs_value_dplacement_t truck_pos
-    ) const
+    void TrafficProcessor::write_semaphore_data()
     {
-        for (auto traffic_object : traffic_objects)
-        {
-            float dx = (traffic_object.traffic_object->placement.cx * 512 + traffic_object.traffic_object->placement.pos.x) - truck_pos.position.x;
-            float dz = (traffic_object.traffic_object->placement.cz * 512 + traffic_object.traffic_object->placement.pos.z) - truck_pos.position.z;
-            traffic_object.distance = std::sqrt(dx * dx + dz * dz);
-        }
-
-        std::sort(traffic_objects.begin(), traffic_objects.end(), [](const processor_traffic_object_t& a, const processor_traffic_object_t& b) {
-            return a.distance < b.distance;
-        });
-
-        // We only want to send the closest 40 traffic objects to the memory
-        if (traffic_objects.size() > 40)
-        {
-            traffic_objects.resize(40);
-        }
+        std::sort(
+            this->semaphore_objects.begin(),
+            this->semaphore_objects.end(),
+            [](const processor_semaphore_object_t& a, const processor_semaphore_object_t& b) {
+                return a.distance < b.distance;
+            }
+        );
 
         std::array<SemaphoreObject, 40> semaphore_objects_data = {};
         int count = 0;
-        for (const auto& obj : traffic_objects)
+        for (const auto& obj : this->semaphore_objects)
         {
             if (count >= 40)
                 break;
@@ -423,7 +518,7 @@ namespace ets2la_plugin
             };
             return_object.id = obj.id;
 
-            if (traffic_object->traffic_rule != nullptr && traffic_object->traffic_rule->get_type() == prism::traffic_light_t::ID)
+            if (traffic_object->traffic_rule != nullptr && traffic_object->traffic_rule->get_type() == prism::ETrafficObjectType::traffic_light)
             {
                 const auto* traffic_light = static_cast<const prism::traffic_light_t*>(traffic_object->traffic_rule);
                 return_object.type = 1; // 1 = traffic light
@@ -448,8 +543,145 @@ namespace ets2la_plugin
             count++;
         }
 
-        memory_handler->write_semaphore_mem(SemaphoreMemData{
+        this->memory_handler_->write_semaphore_mem(SemaphoreMemData{
             semaphore_objects_data
         });
+    }
+
+    /**
+     * traffic_player_vehicles and traffic_player_trailers includes:
+     * - the truck and trailer(s) we're driving
+     * - convoy players' truck and trailer(s)
+     * - the trailers already in companies that have a job in the job market
+     */
+    void TrafficProcessor::get_player_traffic_data()
+    {
+        auto* game_traffic = prism::game_traffic_u::get();
+        auto* game_actor = prism::game_actor_u::get();
+        if (game_traffic == nullptr || game_actor == nullptr)
+        {
+            return;
+        }
+
+        std::unordered_set<uintptr_t> actors_to_ignore = {};
+
+        // we don't want to add our own truck/trailer(s)
+        actors_to_ignore.emplace(reinterpret_cast<uintptr_t>(game_actor->game_physics_vehicle));
+        auto our_slave_trailer = game_actor->game_physics_vehicle->get_trailer();
+        while (our_slave_trailer != nullptr)
+        {
+            actors_to_ignore.emplace(reinterpret_cast<uintptr_t>(our_slave_trailer));
+            our_slave_trailer = our_slave_trailer->get_slave_trailer();
+        }
+
+        for (auto* player_vehicle : game_traffic->traffic_player_vehicles_1)
+        {
+            // TODO: pattern for traffic_player_object?
+            if (actors_to_ignore.find(reinterpret_cast<uintptr_t>(player_vehicle->traffic_player_object->object)) != actors_to_ignore.end())
+            {
+                continue;
+            }
+
+            this->active_actors.emplace_back(
+                processor_active_actor_object_t{
+                    {
+                        false,
+                        player_vehicle->placement.get_distance_to(this->truck_pos),
+                        player_vehicle,
+                    },
+                    player_vehicle->speed,
+                    player_vehicle->acceleration,
+                }
+            );
+
+            auto actor_slave = player_vehicle->slave;
+            while (actor_slave != nullptr)
+            {
+                // we go through the trailers that are attached to the truck later, so we add them to the ignore list
+                actors_to_ignore.emplace(reinterpret_cast<uintptr_t>(actor_slave));
+                actor_slave = actor_slave->slave;
+            }
+        }
+
+        for (auto* player_trailer : game_traffic->traffic_player_trailers_1)
+        {
+            // TODO: pattern for traffic_player_object?
+            if (actors_to_ignore.find(reinterpret_cast<uintptr_t>(player_trailer->traffic_player_object->object)) != actors_to_ignore.end())
+            {
+                continue;
+            }
+            // any trailer that isn't in the ignore list is a trailer that isn't connected to a truck, so we add them to the parked actors list.
+            this->parked_actors.emplace_back(
+                processor_actor_object_t{
+                    true,
+                    player_trailer->placement.get_distance_to(this->truck_pos),
+                    player_trailer,
+                }
+            );
+        }
+    }
+
+    void TrafficProcessor::write_parked_vehicle_data()
+    {
+        std::sort(
+            this->parked_actors.begin(),
+            this->parked_actors.end(),
+            [](const processor_actor_object_t& a, const processor_actor_object_t& b) { return a.distance < b.distance; }
+        );
+
+        std::array<ParkedVehicle, 40> parked_vehicles_data = { 0 };
+        int count = 0;
+        for (const auto& actor_data : this->parked_actors)
+        {
+            if (count >= 40)
+            {
+                break;
+            }
+
+            const auto position = get_center_coords(actor_data.traffic_actor->placement, actor_data.traffic_actor->aabox);
+            ParkedVehicle vehicle_object = {
+                position.x,
+                position.y,
+                position.z,
+                actor_data.traffic_actor->placement.rot.w,
+                actor_data.traffic_actor->placement.rot.x,
+                actor_data.traffic_actor->placement.rot.y,
+                actor_data.traffic_actor->placement.rot.z,
+                abs(actor_data.traffic_actor->aabox.start.x - actor_data.traffic_actor->aabox.end.x), // width
+                abs(actor_data.traffic_actor->aabox.start.y - actor_data.traffic_actor->aabox.end.y), // height
+                abs(actor_data.traffic_actor->aabox.start.z - actor_data.traffic_actor->aabox.end.z),  // length
+                get_uid_for_vehicle(reinterpret_cast<uintptr_t>(actor_data.traffic_actor)), // id
+                actor_data.is_trailer
+            };
+            parked_vehicles_data[count] = vehicle_object;
+            ++count;
+        }
+        this->memory_handler_->write_parked_vehicles_mem(ParkedVehiclesMemData{ parked_vehicles_data });
+    }
+
+    void TrafficProcessor::tick(scs_value_dplacement_t truck_pos)
+    {
+        this->truck_pos = float3_t{
+            (float)truck_pos.position.x,
+            (float)truck_pos.position.y,
+            (float)truck_pos.position.z
+        };
+        this->clear_data();
+
+        this->get_ai_traffic_data();
+
+#if defined(_WIN32)
+        this->get_truckersmp_traffic_data();
+#endif
+
+        this->get_player_traffic_data();
+        this->get_traffic_objects_data();
+
+        // Local\ETS2LATraffic
+        this->write_active_traffic_data();
+        // Local\ETS2LAParkedVehicles
+        this->write_parked_vehicle_data();
+        // Local\ETS2LASemaphore
+        this->write_semaphore_data();
     }
 }

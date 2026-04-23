@@ -61,6 +61,11 @@ namespace ets2la_plugin::prism
         class pp_lamp_colors_u* lamp_colors3; // 0x12B0 (0x08)
         class eut2pp_luminosity_u* luminosity; // 0x12B8 (0x08)
         char pad_12C0[ 40 ]; // 0x12C0 (0x28)
+
+        static uint32_t trailer_offset;
+
+        static bool scan_patterns();
+        game_trailer_actor_u* get_trailer();
     };
     static_assert( sizeof( game_physics_vehicle_u ) == 0x12E8 );
 }
