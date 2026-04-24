@@ -4,6 +4,16 @@
 #include "scssdk_telemetry.h"
 #include <array>
 
+#if defined(_WIN32)
+
+    typedef void *HANDLE;
+
+#else
+
+    typedef int HANDLE;
+
+#endif
+
 namespace ets2la_plugin
 {
     struct PluginStateData;
@@ -14,25 +24,25 @@ namespace ets2la_plugin
     struct SemaphoreMemData;
     struct RouteMemData;
 
+    struct MmapData
+    {
+        const wchar_t* name;
+        void* mmap; // pointer to the data | result of `MapViewOfFile` / `mmap`
+        HANDLE fd; // result of `CreateFileMapping` / `shm_open`
+        HANDLE shm_fd; // wine/proton only, file handle to the /dev/shm/* file we make
+    };
+
     class CMemoryHandler
     {
     private:
 
-        void* state_mmap           = nullptr;
-        void* input_mmap           = nullptr;
-        void* camera_mmap          = nullptr;
-        void* traffic_mmap         = nullptr;
-        void* parked_vehicles_mmap = nullptr;
-        void* semaphore_mmap       = nullptr;
-        void* route_mmap           = nullptr;
-
-        const wchar_t* state_mem_name           = L"ETS2LAPluginStatus";
-        const wchar_t* input_mem_name           = L"ETS2LAPluginInput";
-        const wchar_t* camera_mem_name          = L"ETS2LACameraProps";
-        const wchar_t* traffic_mem_name         = L"ETS2LATraffic";
-        const wchar_t* parked_vehicles_mem_name = L"ETS2LAParkedVehicles";
-        const wchar_t* semaphore_mem_name       = L"ETS2LASemaphore";
-        const wchar_t* route_mem_name           = L"ETS2LARoute";
+        MmapData state_mmap_data           = { L"ETS2LAPluginStatus" };
+        MmapData input_mmap_data           = { L"ETS2LAPluginInput" };
+        MmapData camera_mmap_data          = { L"ETS2LACameraProps" };
+        MmapData traffic_mmap_data         = { L"ETS2LATraffic" };
+        MmapData parked_vehicles_mmap_data = { L"ETS2LAParkedVehicles" };
+        MmapData semaphore_mmap_data       = { L"ETS2LASemaphore" };
+        MmapData route_mmap_data           = { L"ETS2LARoute" };
 
         bool is_running_under_wine = false;
 
@@ -50,7 +60,7 @@ namespace ets2la_plugin
             scs_log_(2, fmt::vformat(std::string("[ets2la_plugin] ") + fmt_s, fmt::make_format_args(args...)).c_str());
         }
 
-        void unmap_file(void* mmap, const wchar_t* file_name, const size_t size);
+        void unmap_file(MmapData& mmap_data, const size_t size);
 
     public:
         CMemoryHandler(scs_log_t scs_log);
@@ -60,8 +70,8 @@ namespace ets2la_plugin
         void destroy();
 
         // initializers
-        void initialize_memory_file(const wchar_t* file_name, const wchar_t* format, void*& output_file) const;
-        void initialize_memory_file_multiple(const wchar_t* file_name, const wchar_t* format, int count, void*& output_file) const;
+        void initialize_memory_file(MmapData& mmap_data, const wchar_t* format) const;
+        void initialize_memory_file_multiple(MmapData& mmap_data, const wchar_t* format, int count) const;
 
         // read/write
         InputMemData read_input_mem() const;

@@ -27,15 +27,38 @@ namespace ets2la_plugin
         destroy();
     }
 
-    void CMemoryHandler::unmap_file(void* mmap, const wchar_t* file_name, const size_t size)
+    void CMemoryHandler::unmap_file(MmapData& mmap_data, const size_t size)
     {
 #if defined(_WIN32)
-        UnmapViewOfFile(mmap);
+        if (mmap_data.mmap != nullptr)
+        {
+            UnmapViewOfFile(mmap_data.mmap);
+            mmap_data.mmap = nullptr;
+        }
+        if (mmap_data.fd != nullptr && mmap_data.fd != INVALID_HANDLE_VALUE)
+        {
+            CloseHandle(mmap_data.fd);
+            mmap_data.fd = INVALID_HANDLE_VALUE;
+        }
+        if (mmap_data.shm_fd != nullptr && mmap_data.shm_fd != INVALID_HANDLE_VALUE)
+        {
+            CloseHandle(mmap_data.shm_fd);
+            mmap_data.shm_fd = INVALID_HANDLE_VALUE;
+        }
 #elif defined(__linux__)
-        std::wstring wfile_name(file_name);
+        std::wstring wfile_name(mmap_data.name);
         std::string sfile_name(wfile_name.begin(), wfile_name.end());
-        munmap(mmap, size);
+        if (mmap_data.mmap != nullptr)
+        {
+            munmap(mmap_data.mmap, size);
+            mmap_data.mmap = nullptr;
+        }
         shm_unlink(("/" + sfile_name).c_str());
+        if (mmap_data.fd != 0)
+        {
+            close(mmap_data.fd);
+            mmap_data.fd = 0;
+        }
 #endif
     }
 
@@ -54,59 +77,26 @@ namespace ets2la_plugin
         }
 #endif
 
-        this->initialize_memory_file(state_mem_name, L"ibb", state_mmap);
-        this->initialize_memory_file(input_mem_name, L"fbdfbd", input_mmap);
-        this->initialize_memory_file(camera_mem_name,L"ffffssffffffffffffffffffff", camera_mmap);
-        this->initialize_memory_file_multiple(traffic_mem_name,
-            L"ffffffffffffssbbffffffffffffffffffffffffffffff",
-            40, traffic_mmap
-        );
-        this->initialize_memory_file_multiple(parked_vehicles_mem_name,
-            L"ffffffffffsb",
-            40, parked_vehicles_mmap
-        );
-        this->initialize_memory_file_multiple(semaphore_mem_name, L"fffssffffifii", 40, semaphore_mmap);
-        this->initialize_memory_file_multiple(route_mem_name, L"lff", 6000, route_mmap);
+        this->initialize_memory_file(state_mmap_data, L"ibb");
+        this->initialize_memory_file(input_mmap_data, L"fbdfbd");
+        this->initialize_memory_file(camera_mmap_data,L"ffffssffffffffffffffffffff");
+        this->initialize_memory_file_multiple(traffic_mmap_data, L"ffffffffffffssbbffffffffffffffffffffffffffffff", 40);
+        this->initialize_memory_file_multiple(parked_vehicles_mmap_data, L"ffffffffffsb", 40);
+        this->initialize_memory_file_multiple(semaphore_mmap_data, L"fffssffffifii", 40);
+        this->initialize_memory_file_multiple(route_mmap_data, L"lff", 6000);
 
         return true;
     }
 
     void CMemoryHandler::destroy()
     {
-        if (state_mmap != nullptr) {
-            this->unmap_file(state_mmap, state_mem_name, sizeof(PluginStateData));
-            state_mmap = nullptr;
-        }
-
-        if (input_mmap != nullptr) {
-            this->unmap_file(input_mmap, input_mem_name, sizeof(InputMemData));
-            input_mmap = nullptr;
-        }
-
-        if (camera_mmap != nullptr) {
-            this->unmap_file(camera_mmap, camera_mem_name, sizeof(CameraMemData));
-            camera_mmap = nullptr;
-        }
-
-        if (traffic_mmap != nullptr) {
-            this->unmap_file(traffic_mmap, traffic_mem_name, sizeof(TrafficMemData));
-            traffic_mmap = nullptr;
-        }
-
-        if (parked_vehicles_mmap != nullptr) {
-            this->unmap_file(parked_vehicles_mmap, parked_vehicles_mem_name, sizeof(ParkedVehiclesMemData));
-            parked_vehicles_mmap = nullptr;
-        }
-
-        if (semaphore_mmap != nullptr) {
-            this->unmap_file(semaphore_mmap, semaphore_mem_name, sizeof(SemaphoreMemData));
-            semaphore_mmap = nullptr;
-        }
-
-        if (route_mmap != nullptr) {
-            this->unmap_file(route_mmap, route_mem_name, sizeof(RouteMemData));
-            route_mmap = nullptr;
-        }
+        this->unmap_file(state_mmap_data, sizeof(PluginStateData));
+        this->unmap_file(input_mmap_data, sizeof(InputMemData));
+        this->unmap_file(camera_mmap_data, sizeof(CameraMemData));
+        this->unmap_file(traffic_mmap_data, sizeof(TrafficMemData));
+        this->unmap_file(parked_vehicles_mmap_data, sizeof(ParkedVehiclesMemData));
+        this->unmap_file(semaphore_mmap_data, sizeof(SemaphoreMemData));
+        this->unmap_file(route_mmap_data, sizeof(RouteMemData));
     }
 
     // This is used to boot up the shared memory file. It creates a file mapping
@@ -117,10 +107,10 @@ namespace ets2la_plugin
     // s - short      (2 bytes)
     // l - long long  (8 bytes)
     // d - double     (8 bytes)
-    void CMemoryHandler::initialize_memory_file(const wchar_t* file_name, const wchar_t* format, void*& output_mmap) const {
+    void CMemoryHandler::initialize_memory_file(MmapData& mmap_data, const wchar_t* format) const {
         std::wstring wformat(format);
         std::string sformat(wformat.begin(), wformat.end());
-        std::wstring wfile_name(file_name);
+        std::wstring wfile_name(mmap_data.name);
         std::string sfile_name(wfile_name.begin(), wfile_name.end());
         this->info("Initializing shared mem file '{}' with format {}", sfile_name, sformat);
 
@@ -161,7 +151,7 @@ namespace ets2la_plugin
         }
 #if defined(_WIN32)
 
-        HANDLE shm_handle = INVALID_HANDLE_VALUE;
+        mmap_data.shm_fd = INVALID_HANDLE_VALUE;
 
         if (this->is_running_under_wine)
         {
@@ -169,7 +159,7 @@ namespace ets2la_plugin
             // But when we use the Windows functions in wine, they obviously don't do that.
             // So we manually create a file directly in `/dev/shm` and use that file handle in `CreateFileMapping`.
             const auto shm_path = L"/dev/shm/" + wfile_name;
-            shm_handle = CreateFile(
+            mmap_data.shm_fd = CreateFile(
                 shm_path.c_str(),
                 GENERIC_READ | GENERIC_WRITE | GENERIC_EXECUTE,
                 FILE_SHARE_READ | FILE_SHARE_WRITE,
@@ -179,14 +169,14 @@ namespace ets2la_plugin
                 NULL
             );
 
-            if (shm_handle == INVALID_HANDLE_VALUE)
+            if (mmap_data.shm_fd == INVALID_HANDLE_VALUE)
             {
                 this->error("Failed to open file '/dev/shm/{}'", sfile_name);
             }
         }
 
-        auto file_map = CreateFileMapping(
-            shm_handle,        // handle
+        mmap_data.fd = CreateFileMapping(
+            mmap_data.shm_fd,  // handle
             NULL,              // default security
             PAGE_READWRITE,    // read/write access
             0,                 // maximum object size (high-order DWORD)
@@ -194,122 +184,120 @@ namespace ets2la_plugin
             (L"Local\\" + wfile_name).c_str() // name of mapping object
         );
 
-        if (file_map == 0) {
+        if (mmap_data.fd == 0) {
             this->error("Failed to create file mapping for '{}'. Error code: {}", sfile_name, GetLastError());
             return;
         }
 
-        output_mmap = MapViewOfFile(file_map, FILE_MAP_ALL_ACCESS, 0, 0, size);
-        CloseHandle(file_map);
+        mmap_data.mmap = MapViewOfFile(mmap_data.fd, FILE_MAP_ALL_ACCESS, 0, 0, size);
 
-        if (output_mmap == nullptr) {
+        if (mmap_data.mmap == nullptr) {
             this->error("Failed to map view of file '{}'. Error code: {}", sfile_name, GetLastError());
             return;
         }
 
 #elif defined(__linux__)
 
-        auto fd =  shm_open(("/" + sfile_name).c_str(), O_CREAT | O_RDWR, 0600);
+        mmap_data.fd =  shm_open(("/" + sfile_name).c_str(), O_CREAT | O_RDWR, 0600);
 
-        if (fd == -1) {
+        if (mmap_data.fd == -1) {
             this->error("Failed to create file mapping for '{}'. Error code: {}", sfile_name.c_str(), errno);
             return;
         }
 
-        if (ftruncate(fd, size) == -1)
+        if (ftruncate(mmap_data.fd, size) == -1)
         {
             this->error("Failed to truncate shm '{}'. Error code: {}", sfile_name.c_str(), errno);
             return;
         }
 
-        output_mmap = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-        close(fd); // mmap stays available even when we close the file.
+        mmap_data.mmap = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, mmap_data.fd, 0);
 
-        if (output_mmap == MAP_FAILED) {
+        if (mmap_data.mmap == MAP_FAILED) {
             this->error("Failed to map view of file '{}'. Error code: {}", sfile_name.c_str(), errno);
             return;
         }
 
 #endif
 
-        memset(output_mmap, 0, size);
+        memset(mmap_data.mmap, 0, size);
         this->info("Successfully opened shared mem file '{}' with size {}", sfile_name, size);
     }
 
     InputMemData CMemoryHandler::read_input_mem() const {
-        if (input_mmap == nullptr) {
+        if (input_mmap_data.mmap == nullptr) {
             this->error("Shared mem file not open.");
             return InputMemData();
         }
 
         InputMemData memData;
-        memcpy(&memData, static_cast<char*>(input_mmap), sizeof(InputMemData));
+        memcpy(&memData, static_cast<char*>(input_mmap_data.mmap), sizeof(InputMemData));
         return memData;
     }
 
     void CMemoryHandler::write_state_mem(const PluginStateData data) const {
-        if (state_mmap == nullptr) {
+        if (state_mmap_data.mmap == nullptr) {
             this->error("Shared mem file not open.");
             return;
         }
 
-        memcpy(static_cast<char*>(state_mmap), &data, sizeof(PluginStateData));
+        memcpy(static_cast<char*>(state_mmap_data.mmap), &data, sizeof(PluginStateData));
     }
 
     void CMemoryHandler::write_camera_mem(const CameraMemData data) const {
-        if (camera_mmap == nullptr) {
+        if (camera_mmap_data.mmap == nullptr) {
             this->error("Shared mem file not open.");
             return;
         }
 
-        memcpy(static_cast<char*>(camera_mmap), &data, sizeof(CameraMemData));
+        memcpy(static_cast<char*>(camera_mmap_data.mmap), &data, sizeof(CameraMemData));
     }
 
     void CMemoryHandler::write_traffic_mem(const TrafficMemData data) const
     {
-        if (traffic_mmap == nullptr)
+        if (traffic_mmap_data.mmap == nullptr)
         {
             this->error("Traffic shared mem file not open.");
             return;
         }
 
-        memcpy(static_cast<char*>(traffic_mmap), &data, sizeof(TrafficMemData));
+        memcpy(static_cast<char*>(traffic_mmap_data.mmap), &data, sizeof(TrafficMemData));
     }
 
     void CMemoryHandler::write_parked_vehicles_mem(const ParkedVehiclesMemData data) const
     {
-        if (parked_vehicles_mmap == nullptr)
+        if (parked_vehicles_mmap_data.mmap == nullptr)
         {
             this->error("Parked vehicles shared mem file not open.");
             return;
         }
 
-        memcpy(static_cast<char*>(parked_vehicles_mmap), &data, sizeof(ParkedVehiclesMemData));
+        memcpy(static_cast<char*>(parked_vehicles_mmap_data.mmap), &data, sizeof(ParkedVehiclesMemData));
     }
 
     void CMemoryHandler::write_semaphore_mem(const SemaphoreMemData data) const
     {
-        if (semaphore_mmap == nullptr)
+        if (semaphore_mmap_data.mmap == nullptr)
         {
             this->error("Semaphore shared mem file not open.");
             return;
         }
 
-        memcpy(static_cast<char*>(semaphore_mmap), &data, sizeof(SemaphoreMemData));
+        memcpy(static_cast<char*>(semaphore_mmap_data.mmap), &data, sizeof(SemaphoreMemData));
     }
 
     void CMemoryHandler::write_route_mem(const RouteMemData data) const
     {
-        if (route_mmap ==  nullptr)
+        if (route_mmap_data.mmap == nullptr)
         {
             this->error("Route shared mem file not open.");
             return;
         }
 
-        memcpy(static_cast<char*>(route_mmap), &data, sizeof(RouteMemData));
+        memcpy(static_cast<char*>(route_mmap_data.mmap), &data, sizeof(RouteMemData));
     }
 
-    void CMemoryHandler::initialize_memory_file_multiple(const wchar_t* file_name, const wchar_t* format, int count, void*& output_file) const {
+    void CMemoryHandler::initialize_memory_file_multiple(MmapData& mmap_data, const wchar_t* format, int count) const {
         wchar_t* total_format = (wchar_t*)malloc(count * (wcslen(format) + 1) * sizeof(wchar_t)); // count objects, +1 for null terminator
         if (!total_format) {
             this->error("Couldn't generate total_format");
@@ -323,7 +311,7 @@ namespace ets2la_plugin
         }
         wcscpy(total_format, wtotal_format.c_str());
 
-        this->initialize_memory_file(file_name, total_format, output_file);
+        this->initialize_memory_file(mmap_data, total_format);
         free(total_format);
 
     }
