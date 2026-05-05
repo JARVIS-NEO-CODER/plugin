@@ -2,12 +2,16 @@
 
 namespace ets2la_plugin::patterns
 {
+    // In 1.59 on Windows for some reason the singleton/instance ptrs have an offset added to the address
+    // so for now we store the offset in `instance_address_offset` and add it in the `get` function of the class
+    // TODO: if this keeps being a thing in newer versions and if it keeps changing, get the offset from the pattern.
 
     namespace base_ctrl
     {
-        inline constexpr auto pattern           = "48 8b 05 ? ? ? ? 48 8b ? 48 8b 49 ? 48 8b 80";
-        inline constexpr auto offset_instance   = 3;
-        inline constexpr auto offset_game_actor = 17;
+        inline constexpr auto pattern = "48 8b 05 ? ? ? ? 48 85 c0 74 ? 48 8d 78 F0 48 8b 87 ? ? ? ? 48 85 c0 74";
+        inline constexpr auto offset_instance         = 3;
+        inline constexpr auto offset_game_actor       = 19;
+        inline constexpr auto instance_address_offset = -0x10;
 
         namespace nearby_non_ai_vehicles
         {
@@ -20,28 +24,29 @@ namespace ets2la_plugin::patterns
             inline constexpr auto pattern = "49 8d 8e ? ? ? ? 48 89 45 ? e8 ? ? ? ? 49 8b 86";
             inline constexpr auto offset  = 3;
         }
-
     }
 
     namespace game_ctrl
     {
         namespace gps_manager
         {
-            inline constexpr auto pattern = "48 8d b7 ? ? ? ? 0f 57 c9";
+            inline constexpr auto pattern = "48 8d be ? ? ? ? 0f 57 c9";
             inline constexpr auto offset  = 3;
         }
     }
 
     namespace camera_manager
     {
-        inline constexpr auto pattern         = "48 8b 05 ? ? ? ? 48 8b fa 48 85 c0 0f";
-        inline constexpr auto offset_instance = 3;
+        inline constexpr auto pattern                 = "48 8b 0d ? ? ? ? 33 f6 48 8d 59 f0";
+        inline constexpr auto offset_instance         = 3;
+        inline constexpr auto instance_address_offset = -0x10;
     }
 
     namespace game_traffic
     {
-        inline constexpr auto pattern         = "48 8b d9 48 8b 0d ? ? ? ? 48 85 c9 74 ? 48 8b 83 ? ? ? ? 48 85 c0";
-        inline constexpr auto offset_instance = 6;
+        inline constexpr auto pattern                 = "48 8b 05 ? ? ? ? 48 85 c0 74 ? 48 83 c0 e8 4c";
+        inline constexpr auto offset_instance         = 3;
+        inline constexpr auto instance_address_offset = -0x18;
     }
 
     namespace vehicle_shared
@@ -57,8 +62,9 @@ namespace ets2la_plugin::patterns
     {
         namespace throttle_input
         {
-            inline constexpr auto pattern               = "48 b8 3F 7C FD CC 88 01 00 00 48 8d 8f";
-            inline constexpr auto offset                = 13;
+            inline constexpr auto pattern =
+                "48 b8 3F 7C FD CC 88 01 00 00 48 89 85 ? ? ? ? 33 c0 48 89 85 ? ? ? ? 0f 11 87";
+            inline constexpr auto offset                = 29;
             inline constexpr auto offset_value_modifier = 0;
         }
         namespace brake_input
