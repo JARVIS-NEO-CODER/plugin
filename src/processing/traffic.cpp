@@ -129,7 +129,6 @@ namespace ets2la_plugin
 
     void TrafficProcessor::get_ai_traffic_data()
     {
-
         auto* game_traffic = prism::game_traffic_u::get();
         if (game_traffic == nullptr)
         {
@@ -138,6 +137,10 @@ namespace ets2la_plugin
 
         for (const auto& spawned_vehicle : game_traffic->spawned_vehicles_1)
         {
+            if (spawned_vehicle.vehicle->physics == nullptr)
+            {
+                continue;
+            }
             active_actors.emplace_back(processor_active_actor_object_t{
                 {
                     false,
@@ -151,6 +154,10 @@ namespace ets2la_plugin
 
         for (const auto& spawned_vehicle : game_traffic->spawned_vehicles_2)
         {
+            if (spawned_vehicle.vehicle->physics == nullptr)
+            {
+                continue;
+            }
             active_actors.emplace_back(processor_active_actor_object_t{
                 {
                     false,
@@ -171,6 +178,10 @@ namespace ets2la_plugin
             }
             // special transport escort vehicles (and maybe some other vehicles, not sure)
             const auto ai_vehicle = reinterpret_cast<prism::traffic_ai_vehicle_t*>(traffic_object);
+            if (ai_vehicle->physics == nullptr)
+            {
+                continue;
+            }
             active_actors.emplace_back(processor_active_actor_object_t{
                 {
                     false,

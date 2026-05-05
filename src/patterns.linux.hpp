@@ -5,14 +5,15 @@ namespace ets2la_plugin::patterns
 
     namespace base_ctrl
     {
-        inline constexpr auto pattern           = "48 8b 05 ? ? ? ? 48 8b 7f ? 48 8b 80 ? ? ? ? 4c";
-        inline constexpr auto offset_instance   = 3;
-        inline constexpr auto offset_game_actor = 14;
+        inline constexpr auto pattern                 = "48 8b 05 ? ? ? ? 48 8b 7f ? 48 8b 80 ? ? ? ? 4c";
+        inline constexpr auto offset_instance         = 3;
+        inline constexpr auto offset_game_actor       = 14;
+        inline constexpr auto instance_address_offset = 0;
 
         namespace nearby_non_ai_vehicles
         {
-            inline constexpr auto pattern = "0f 85 ? ? ? ? 48 8d bb ? ? ? ? e8 ? ? ? ? 4c 8b ab ? ? ? ? 4d 85 ed 74";
-            inline constexpr auto offset  = 9;
+            inline constexpr auto pattern = "48 8d bb ? ? ? ? e8 ? ? ? ? 48 8b bb ? ? ? ? e8 ? ? ? ? 48 8b bd";
+            inline constexpr auto offset  = 3;
         }
 
         namespace nearby_kdop_items
@@ -34,14 +35,16 @@ namespace ets2la_plugin::patterns
 
     namespace camera_manager
     {
-        inline constexpr auto pattern         = "48 8b 1d ? ? ? ? 8b 43 ? 85 c0";
-        inline constexpr auto offset_instance = 3;
+        inline constexpr auto pattern                 = "48 8b 1d ? ? ? ? 8b 43 ? 85 c0";
+        inline constexpr auto offset_instance         = 3;
+        inline constexpr auto instance_address_offset = 0;
     }
 
     namespace game_traffic
     {
-        inline constexpr auto pattern         = "48 8b 0d ? ? ? ? 48 85 f6 4c 8b 81";
-        inline constexpr auto offset_instance = 3;
+        inline constexpr auto pattern                 = "48 8b 0d ? ? ? ? 48 85 f6 4c 8b 81";
+        inline constexpr auto offset_instance         = 3;
+        inline constexpr auto instance_address_offset = 0;
     }
 
     namespace vehicle_shared
