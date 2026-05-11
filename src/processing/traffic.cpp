@@ -24,7 +24,7 @@
 namespace ets2la_plugin
 {
     // vehicle coordinates are not at the center of the vehicle, so we use the aabox to calculate the center
-    float3_t get_center_coords(const prism::placement_t& placement, const prism::aabox_t& aabox)
+    float3_t TrafficProcessor::get_center_coords(const prism::placement_t& placement, const prism::aabox_t& aabox) const
     {
         const float width = abs(aabox.start.x - aabox.end.x);
         const float height = abs(aabox.start.y - aabox.end.y);

@@ -125,9 +125,9 @@ namespace ets2la_plugin::prism
         virtual void vfunc_26();
         virtual void vfunc_27();
         virtual void vfunc_28();
-        virtual void vfunc_29();
-        virtual void vfunc_30();
-        virtual void get_physics_placement(placement_t *) const;
+        virtual void get_interpolated_placement( placement_t * ) const;
+        virtual void get_interpolated_rotation( quat_t * ) const;
+        virtual void get_physics_placement( placement_t * ) const;
 
         static uint32_t steering_angle_offset;
 

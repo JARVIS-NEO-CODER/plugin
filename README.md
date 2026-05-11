@@ -32,8 +32,10 @@ Please see the [original repository](https://github.com/dariowouters/ts-extra-ut
     while True:
         format = "=ffffhhffffffffffffffffffff"
         data = struct.unpack(format, buf[:36])
-        data # fov, x, y, z, cx, cz, qw, qx, qy, qz, m11, m12, m13, m14, m21, ..., m44
+        data # fov, x, y, z, cx, cz, qw, qx, qy, qz, m11, m12, m13, m14, m21, ..., m44, truck_x, truck_y, truck_z
              # the m values are a 4x4 camera projection matrix.
+             # the truck position values are interpolated to the current camera timestamp
+             # if you want to render something at the truck position, use these values instead of the telemetry to avoid jitter
     ```
 - [x] Expose a virtual memory file at `Local\ETS2LATraffic` to get the **closest 40 traffic vehicles**.
     ```python

@@ -86,10 +86,11 @@ namespace ets2la_plugin
 
         public:
             TrafficProcessor(scs_log_t scs_log, CMemoryHandler* memory_handler)
-                : scs_log_(scs_log), memory_handler_(memory_handler)
+            : scs_log_(scs_log), memory_handler_(memory_handler)
             {
             }
-
+            
             void tick(scs_value_dplacement_t truck_pos);
+            float3_t get_center_coords(const prism::placement_t& placement, const prism::aabox_t& aabox) const;
     };
 }

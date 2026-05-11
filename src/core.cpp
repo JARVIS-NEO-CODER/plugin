@@ -1,5 +1,4 @@
 ﻿#include "core.hpp"
-
 #include "consts.hpp"
 
 #include "memory/memory_utils.hpp"
@@ -91,6 +90,26 @@ namespace ets2la_plugin
             data.m42 = current_camera->projection_matrix.m42;
             data.m43 = current_camera->projection_matrix.m43;
             data.m44 = current_camera->projection_matrix.m44;
+
+            // We add the truck position to the camera data to avoid jitter on the ETS2LA side.
+            // To render at an offset to the truck (e.g. the HUD), it's position has to be synced with the camera timestamp.
+            // Sending it along with the camera data is the most reliable way to achieve this (to my knowledge!).
+            const auto game_actor = prism::game_actor_u::get();
+            if (game_actor != nullptr)
+            {
+                const auto* our_truck = game_actor->game_physics_vehicle;
+                prism::placement_t truck_placement;
+                our_truck->get_interpolated_placement(&truck_placement);
+                const auto truck_position = traffic_processor_->get_center_coords(truck_placement, our_truck->aabox);
+
+                data.truck_pos_x = truck_position.x;
+                data.truck_pos_y = truck_position.y;
+                data.truck_pos_z = truck_position.z;
+            } else {
+                data.truck_pos_x = 0;
+                data.truck_pos_y = 0;
+                data.truck_pos_z = 0;
+            }
 
             this->memory_manager_->write_camera_mem(data);
         }
