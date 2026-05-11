@@ -28,14 +28,15 @@ Please see the [original repository](https://github.com/dariowouters/ts-extra-ut
 - [x] Expose a virtual memory file at `Local\ETS2LACameraProps` to get the **current camera properties** from the game.
     ```python
     import time, mmap
-    buf = mmap.mmap(0, 100, r"Local\ETS2LACameraProps")
+    buf = mmap.mmap(0, 128, r"Local\ETS2LACameraProps")
     while True:
         format = "=ffffhhffffffffffffffffffff"
         data = struct.unpack(format, buf[:36])
-        data # fov, x, y, z, cx, cz, qw, qx, qy, qz, m11, m12, m13, m14, m21, ..., m44, truck_x, truck_y, truck_z
+        data # fov, x, y, z, cx, cz, qw, qx, qy, qz, m11, m12, m13, m14, m21, ..., m44, truck_x, truck_y, truck_z, truck_rot_w, truck_rot_x, truck_rot_y, truck_rot_z
              # the m values are a 4x4 camera projection matrix.
-             # the truck position values are interpolated to the current camera timestamp
+             # the truck position (and rotation) values are interpolated to the current camera timestamp
              # if you want to render something at the truck position, use these values instead of the telemetry to avoid jitter
+             # you can also just read the first 100 bytes to get the camera properties without the additional truck position and rotation data
     ```
 - [x] Expose a virtual memory file at `Local\ETS2LATraffic` to get the **closest 40 traffic vehicles**.
     ```python

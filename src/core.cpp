@@ -105,10 +105,20 @@ namespace ets2la_plugin
                 data.truck_pos_x = truck_position.x;
                 data.truck_pos_y = truck_position.y;
                 data.truck_pos_z = truck_position.z;
+
+                data.truck_rot_w = truck_placement.rot.w;
+                data.truck_rot_x = truck_placement.rot.x;
+                data.truck_rot_y = truck_placement.rot.y;
+                data.truck_rot_z = truck_placement.rot.z;
             } else {
                 data.truck_pos_x = 0;
                 data.truck_pos_y = 0;
                 data.truck_pos_z = 0;
+
+                data.truck_rot_w = 1;
+                data.truck_rot_x = 0;
+                data.truck_rot_y = 0;
+                data.truck_rot_z = 0;
             }
 
             this->memory_manager_->write_camera_mem(data);

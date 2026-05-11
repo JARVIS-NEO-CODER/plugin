@@ -64,9 +64,13 @@ namespace ets2la_plugin
         float truck_pos_x; // 100 
         float truck_pos_y; // 104
         float truck_pos_z; // 108
-                           // 112
+        float truck_rot_w; // 112
+        float truck_rot_x; // 116
+        float truck_rot_y; // 120
+        float truck_rot_z; // 124
+                           // 128
     };
-    static_assert(sizeof(CameraMemData) == 112);
+    static_assert(sizeof(CameraMemData) == 128);
 
     struct TrafficVehicle
     {

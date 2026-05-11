@@ -79,7 +79,7 @@ namespace ets2la_plugin
 
         this->initialize_memory_file(state_mmap_data, L"ibb");
         this->initialize_memory_file(input_mmap_data, L"fbdfbd");
-        this->initialize_memory_file(camera_mmap_data,L"ffffssfffffffffffffffffffffff");
+        this->initialize_memory_file(camera_mmap_data,L"ffffssfffffffffffffffffffffffffff");
         this->initialize_memory_file_multiple(traffic_mmap_data, L"ffffffffffffssbbffffffffffffffffffffffffffffff", 40);
         this->initialize_memory_file_multiple(parked_vehicles_mmap_data, L"ffffffffffsb", 40);
         this->initialize_memory_file_multiple(semaphore_mmap_data, L"fffssffffifii", 40);
