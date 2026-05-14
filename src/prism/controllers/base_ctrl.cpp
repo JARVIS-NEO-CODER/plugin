@@ -69,9 +69,7 @@ namespace ets2la_plugin::prism
     {
         if ( base_ctrl_u::instance_ptr_address != 0 )
         {
-            const auto address = *reinterpret_cast< uint64_t* >( base_ctrl_u::instance_ptr_address );
-
-            return reinterpret_cast< base_ctrl_u* >( address + patterns::base_ctrl::instance_address_offset );
+            return *reinterpret_cast< base_ctrl_u** >( base_ctrl_u::instance_ptr_address );
         }
         return nullptr;
     }

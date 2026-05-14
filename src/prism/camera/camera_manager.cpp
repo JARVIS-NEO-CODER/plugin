@@ -30,9 +30,7 @@ namespace ets2la_plugin::prism
     {
         if ( camera_manager_u::instance_ptr_address != 0 )
         {
-            const auto address = *reinterpret_cast< uint64_t* >( camera_manager_u::instance_ptr_address );
-
-            return reinterpret_cast< camera_manager_u* >( address + patterns::camera_manager::instance_address_offset );
+            return *reinterpret_cast< camera_manager_u** >( camera_manager_u::instance_ptr_address );
         }
         return nullptr;
     }

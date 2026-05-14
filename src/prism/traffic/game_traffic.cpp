@@ -30,9 +30,7 @@ namespace ets2la_plugin::prism
     {
         if ( game_traffic_u::instance_ptr_address != 0 )
         {
-            const auto address = *reinterpret_cast< uint64_t* >( game_traffic_u::instance_ptr_address );
-
-            return reinterpret_cast< game_traffic_u* >( address + patterns::game_traffic::instance_address_offset );
+            return *reinterpret_cast< game_traffic_u** >( game_traffic_u::instance_ptr_address );
         }
         return nullptr;
     }
