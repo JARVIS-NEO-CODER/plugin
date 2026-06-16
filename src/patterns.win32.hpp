@@ -4,9 +4,9 @@ namespace ets2la_plugin::patterns
 {
     namespace base_ctrl
     {
-        inline constexpr auto pattern = "48 8b 05 ? ? ? ? 48 8b ? 48 8b 49 ? 48 8b 80";
-        inline constexpr auto offset_instance         = 3;
-        inline constexpr auto offset_game_actor       = 17;
+        inline constexpr auto pattern           = "48 8b 15 ? ? ? ? 48 8b ? 48 8b 41 ? 48 8b 92";
+        inline constexpr auto offset_instance   = 3;
+        inline constexpr auto offset_game_actor = 17;
 
         namespace nearby_non_ai_vehicles
         {
@@ -16,7 +16,7 @@ namespace ets2la_plugin::patterns
 
         namespace nearby_kdop_items
         {
-            inline constexpr auto pattern = "49 8d 8e ? ? ? ? 48 89 45 ? e8 ? ? ? ? 49 8b 86";
+            inline constexpr auto pattern = "4c 8d 81 ? ? ? ? 0f 29 ? ? 48 8d 91";
             inline constexpr auto offset  = 3;
         }
     }
@@ -25,21 +25,21 @@ namespace ets2la_plugin::patterns
     {
         namespace gps_manager
         {
-            inline constexpr auto pattern = "48 8d b7 ? ? ? ? 0f 57 c9";
+            inline constexpr auto pattern = "48 8d 88 ? ? ? ? 48 85 c9 74 ? 48 8b 01 48 8d 54";
             inline constexpr auto offset  = 3;
         }
     }
 
     namespace camera_manager
     {
-        inline constexpr auto pattern                 = "48 8b 05 ? ? ? ? 48 8b fa 48 85 c0 0f";
-        inline constexpr auto offset_instance         = 3;
+        inline constexpr auto pattern         = "48 8b 05 ? ? ? ? 48 8b fa 48 85 c0 0f";
+        inline constexpr auto offset_instance = 3;
     }
 
     namespace game_traffic
     {
-        inline constexpr auto pattern                 = "48 8b d9 48 8b 0d ? ? ? ? 48 85 c9 74 ? 48 8b 83 ? ? ? ? 48 85 c0";
-        inline constexpr auto offset_instance         = 6;
+        inline constexpr auto pattern         = "48 8b d9 48 8b 0d ? ? ? ? 48 85 c9 74 ? 48 8b 83 ? ? ? ? 48 85 c0";
+        inline constexpr auto offset_instance = 6;
     }
 
     namespace vehicle_shared
@@ -55,9 +55,8 @@ namespace ets2la_plugin::patterns
     {
         namespace throttle_input
         {
-            inline constexpr auto pattern =
-                "48 b8 3F 7C FD CC 88 01 00 00 48 89 85 ? ? ? ? 33 c0 48 89 85 ? ? ? ? 0f 11 87";
-            inline constexpr auto offset                = 29;
+            inline constexpr auto pattern = "48 b8 42 7c fd cc 88 01 00 00 48 8d 95 ? ? ? ? 48 89 85 ? ? ? ? 48 8d 8f";
+            inline constexpr auto offset  = 27;
             inline constexpr auto offset_value_modifier = 0;
         }
         namespace brake_input

@@ -2,17 +2,17 @@
 
 #include "./traffic_semaphore.hpp"
 
-#pragma pack( push, 1 )
-
 namespace ets2la_plugin::prism
 {
-    // Size: 0x00A8
-    class traffic_light_t : public /* [0x68] @ 0x00 */ traffic_semaphore_t
+#pragma pack( push, 1 )
+
+    // Size: W 0x00C0, L|A 0x00B0
+    class traffic_light_t : public /* [W 0x78, L|A 0x68] @ W|L|A 0x00 */ traffic_semaphore_t
     {
     public:
-        char pad_0068[ 56 ];        // 0x0068 (0x38)
-        float state_time_remaining; // 0x00A0 (0x04)
-        char pad_00A4[ 4 ];         // 0x00A4 (0x04)
+        char pad_W_0x0078__LA_0x0068[ 64 ]; // W 0x0078, L|A 0x0068 (W|L|A 0x40)
+        float state_time_remaining;         // W 0x00B8, L|A 0x00A8 (W|L|A 0x04)
+        char pad_W_0x00BC__LA_0x00AC[ 4 ];  // W 0x00BC, L|A 0x00AC (W|L|A 0x04)
 
         struct ELightState
         {
@@ -27,7 +27,12 @@ namespace ets2la_plugin::prism
             };
         };
     };
-    static_assert( sizeof( traffic_light_t ) == 0xA8 );
-}
+
+#if defined( _WIN32 )
+    static_assert( sizeof( traffic_light_t ) == 0xC0 ); // W
+#elif defined( __linux__ ) || defined( __APPLE__ )
+    static_assert( sizeof( traffic_light_t ) == 0xB0 ); // L|A
+#endif
 
 #pragma pack( pop )
+}

@@ -8,7 +8,9 @@
 
 #include "prism/controllers/base_ctrl.hpp"
 #include "prism/controllers/game_ctrl.hpp"
+#include "prism/camera/core_camera.hpp"
 #include "prism/camera/camera_manager.hpp"
+#include "prism/navigation/gps_manager.hpp"
 #include "prism/traffic/game_traffic.hpp"
 
 #include "prism/management/item/node_item.hpp"
@@ -137,15 +139,9 @@ namespace ets2la_plugin
         // route_task is nullptr when no route is set
         if (gps_manager->simple_route_source.route_task != nullptr)
         {
-            size_t n = 0;
-            for (const auto &route_item : gps_manager->simple_route_source.route_task->physical_route_items)
+            if (gps_manager->simple_route_source.route_task->physical_route_items.size != last_route_length_)
             {
-                n++;
-            }
-
-            if (n != last_route_length_)
-            {
-                last_route_length_ = n;
+                last_route_length_ = gps_manager->simple_route_source.route_task->physical_route_items.size;
                 std::array<RouteTaskObject, 6000> route_tasks = {};
                 int i = 0;
                 for (const auto &route_item : gps_manager->simple_route_source.route_task->physical_route_items)
@@ -164,19 +160,6 @@ namespace ets2la_plugin
                 RouteMemData data = { route_tasks };
                 this->memory_manager_->write_route_mem(data);
             }
-        }
-
-        for (const auto &waypoint : gps_manager->waypoints)
-        {
-            // float x = waypoint.node->coords.x / 256.f;
-            // float y = waypoint.node->coords.y / 256.f;
-            // float z = waypoint.node->coords.z / 256.f;
-        }
-        for (const auto &waypoint : gps_manager->avoid_waypoints)
-        {
-            // float x = waypoint.node->coords.x / 256.f;
-            // float y = waypoint.node->coords.y / 256.f;
-            // float z = waypoint.node->coords.z / 256.f;
         }
     }
 

@@ -1,13 +1,13 @@
 #pragma once
 
 #include "prism/collections/array_dyn.hpp"
-#include "prism/common.hpp"
-#include "prism/thread/task.hpp"
 
-#pragma pack( push, 1 )
+#include "prism/thread/task.hpp"
 
 namespace ets2la_plugin::prism
 {
+#pragma pack( push, 1 )
+
     class route_task_node_t // Size: 0x0018
     {
     public:
@@ -49,22 +49,26 @@ namespace ets2la_plugin::prism
     };
     static_assert( sizeof( physical_route_item_t ) == 0x20 );
 
-    // Size: 0x0138 1.58
-    class route_task_t : public /* [0x38] @ 0x00 */ thread::task_t
+    // Size: W 0x0160, L|A 0x0138
+    class route_task_t : public /* [W|L|A 0x38] @ W|L|A 0x00 */ thread::task_t
     {
     public:
-        char pad_0038[ 24 ];                                        // 0x0038 (0x18)
-        array_dyn_t< physical_route_item_t > physical_route_items;  // 0x0050 (0x20) node to node
-        array_dyn_t< route_item_t > route_items;                    // 0x0070 (0x20)
-        char pad_0090[ 40 ];                                        // 0x0090 (0x28)
-        array_dyn_t< class private_route_task_target_t > N000071A4; // 0x00B8 (0x20)
-        char pad_00D8[ 24 ];                                        // 0x00D8 (0x18)
-        array_dyn_t< uint32_t > N00007011;                          // 0x00F0 (0x20)
-        char pad_0110[ 8 ];                                         // 0x0110 (0x08)
-        array_dyn_t< uint64_t > N00007013;                          // 0x0118 (0x20)
+        char pad_WLA_0x0038[ 24 ];                                       // W|L|A 0x0038 (W|L|A 0x18)
+        array_dyn_t< class physical_route_item_t > physical_route_items; // W|L|A 0x0050 (W 0x28, L|A 0x20)
+        array_dyn_t< class route_item_t > route_items;                   // W 0x0078, L|A 0x0070 (W 0x28, L|A 0x20)
+        char pad_W_0x00A0__LA_0x0090[ 40 ];                              // W 0x00A0, L|A 0x0090 (W|L|A 0x28)
+        array_dyn_t< class private_route_task_target_t > N000071A4;      // W 0x00C8, L|A 0x00B8 (W 0x28, L|A 0x20)
+        char pad_W_0x00F0__LA_0x00D8[ 24 ];                              // W 0x00F0, L|A 0x00D8 (W|L|A 0x18)
+        array_dyn_t< uint32_t > N00007011;                               // W 0x0108, L|A 0x00F0 (W 0x28, L|A 0x20)
+        char pad_W_0x0130__LA_0x0110[ 8 ];                               // W 0x0130, L|A 0x0110 (W|L|A 0x08)
+        array_dyn_t< uint32_t > N00007013;                               // W 0x0138, L|A 0x0118 (W 0x28, L|A 0x20)
     };
-    static_assert( sizeof( route_task_t ) == 0x138 );
 
-}
+#if defined( _WIN32 )
+    static_assert( sizeof( route_task_t ) == 0x160 ); // W
+#elif defined( __linux__ ) || defined( __APPLE__ )
+    static_assert( sizeof( route_task_t ) == 0x138 ); // L|A
+#endif
 
 #pragma pack( pop )
+}

@@ -1,6 +1,7 @@
 #pragma once
 #include <cstring>
 #include <string>
+#include <cstdint>
 
 namespace ets2la_plugin::prism
 {

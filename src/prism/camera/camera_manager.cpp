@@ -1,6 +1,8 @@
 #include "camera_manager.hpp"
 
 #include "core.hpp"
+#include "memory/memory_utils.hpp"
+#include "patterns.hpp"
 
 namespace ets2la_plugin::prism
 {
