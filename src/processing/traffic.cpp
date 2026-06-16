@@ -211,7 +211,7 @@ namespace ets2la_plugin
 
 
         auto* node = vehicles_list->begin;
-        while(node->item != vehicles_list->empty_item)
+        for(auto i = 0; i < vehicles_list->size && node->item != vehicles_list->empty_item; ++i, node = node->next)
         {
             const auto unit_descriptor = node->item->get_unit_descriptor();
 
@@ -236,8 +236,6 @@ namespace ets2la_plugin
                 auto *truck = reinterpret_cast<prism::game_physics_vehicle_u *>(node->item);
                 tmp_vehicles.push_back(truck);
             }
-
-            node = node->next;
         }
     }
 
@@ -379,7 +377,7 @@ namespace ets2la_plugin
                     abs(tmp_truck->aabox.start.y - tmp_truck->aabox.end.y), // height
                     abs(tmp_truck->aabox.start.z - tmp_truck->aabox.end.z), // length
                     0,                               // speed (null)
-                    tmp_truck->linear_acceleration.x + tmp_truck->linear_acceleration.y + tmp_truck->linear_acceleration.z,  // acceleration (null)
+                    0,                               // acceleration (null)
                     0,                               // trailer_count
                     get_uid_for_vehicle(reinterpret_cast<uintptr_t>(tmp_truck)),
                     true,                            // is_tmp
@@ -407,7 +405,7 @@ namespace ets2la_plugin
                     abs(tmp_trailer->aabox.start.y - tmp_trailer->aabox.end.y), // height
                     abs(tmp_trailer->aabox.start.z - tmp_trailer->aabox.end.z), // length
                     0,                               // speed (null)
-                    tmp_trailer->linear_acceleration.x + tmp_trailer->linear_acceleration.y + tmp_trailer->linear_acceleration.z,  // acceleration (null)
+                    0,                               // acceleration (null)
                     0,                               // trailer_count
                     get_uid_for_vehicle(reinterpret_cast<uintptr_t>(tmp_trailer)),
                     true,                            // is_tmp
