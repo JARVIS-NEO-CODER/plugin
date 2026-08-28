@@ -31,6 +31,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ./src/prism/vehicles/vehicle_shared.cpp
 
     ./src/processing/traffic.cpp
+    ./src/processing/examiner_camera_bridge.cpp
 )
 
 if (WIN32)
