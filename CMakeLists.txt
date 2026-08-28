@@ -32,6 +32,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 
     ./src/processing/traffic.cpp
     ./src/processing/examiner_camera_bridge.cpp
+    ./src/processing/examiner_gui.cpp
 )
 
 if (WIN32)
