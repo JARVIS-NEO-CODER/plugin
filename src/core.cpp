@@ -20,6 +20,7 @@
 
 #include "processing/traffic.hpp"
 #include "processing/examiner_camera_bridge.hpp"
+#include "processing/examiner_gui.hpp"
 
 #include <ctime>
 #include <cmath>
@@ -48,6 +49,7 @@ namespace ets2la_plugin
 
     CCore::~CCore()
     {
+        examiner_gui::shutdown();
         examiner_camera_bridge::shutdown();
         this->destroy();
     }
@@ -249,6 +251,9 @@ namespace ets2la_plugin
 
     void CCore::tick() const
     {
+        // Native in-game examiner overlay (F8).
+        examiner_gui::tick();
+
         // Local\\ETS2LACameraProps
         this->get_camera_data();
 
@@ -375,6 +380,9 @@ namespace ets2la_plugin
             this->error("Could not register for frame_end event");
             return false;
         }
+
+        examiner_gui::init();
+        this->info("Examiner GUI initialized. Press F8 in ETS2 to open it.");
 
         return true;
     }
