@@ -19,6 +19,7 @@
 #include "prism/game_actor.hpp"
 
 #include "processing/traffic.hpp"
+#include "processing/examiner_camera_bridge.hpp"
 
 #include <ctime>
 #include <cmath>
@@ -47,6 +48,7 @@ namespace ets2la_plugin
 
     CCore::~CCore()
     {
+        examiner_camera_bridge::shutdown();
         this->destroy();
     }
 
@@ -57,7 +59,6 @@ namespace ets2la_plugin
         if (camera_manager == nullptr)
             return;
 
-        // make sure index is in the list
         if (camera_manager->current_camera >= camera_manager->cameras.size)
             return;
 
@@ -93,9 +94,6 @@ namespace ets2la_plugin
             data.m43 = current_camera->projection_matrix.m43;
             data.m44 = current_camera->projection_matrix.m44;
 
-            // We add the truck position to the camera data to avoid jitter on the ETS2LA side.
-            // To render at an offset to the truck (e.g. the HUD), it's position has to be synced with the camera timestamp.
-            // Sending it along with the camera data is the most reliable way to achieve this (to my knowledge!).
             const auto game_actor = prism::game_actor_u::get();
             if (game_actor != nullptr)
             {
@@ -132,11 +130,8 @@ namespace ets2la_plugin
         auto *gps_manager = prism::gps_manager_t::get();
 
         if (gps_manager == nullptr)
-        {
             return;
-        }
 
-        // route_task is nullptr when no route is set
         if (gps_manager->simple_route_source.route_task != nullptr)
         {
             if (gps_manager->simple_route_source.route_task->physical_route_items.size != last_route_length_)
@@ -149,10 +144,8 @@ namespace ets2la_plugin
                     RouteTaskObject task = {};
                     prism::node_item_t *node = route_item.node;
                     task.uid = node->uid;
-
                     task.distance = route_item.total_distance_till_end;
                     task.time = route_item.total_time_till_end;
-
                     route_tasks[i] = task;
                     i++;
                 }
@@ -178,13 +171,9 @@ namespace ets2la_plugin
 
         double current_time = std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
         if (current_time - steering_timestamp > 0.2)
-        {
             should_override_steering = false;
-        }
         if (current_time - acceleration_timestamp > 0.2)
-        {
             should_override_acceleration = false;
-        }
 
         auto* game_actor = prism::game_actor_u::get();
         if (game_actor != nullptr) {
@@ -195,11 +184,11 @@ namespace ets2la_plugin
                     steering_start_time = current_time;
                     this->info("controlling steering.");
                 }
-                double t = (current_time - steering_start_time) / 1.5; // 1.5s to fully take control
+                double t = (current_time - steering_start_time) / 1.5;
                 if (t < 1) {
-                    t = sin((t * 3.1415) / 2); // easeOutSine
+                    t = sin((t * 3.1415) / 2);
                     float cur = game_actor->game_physics_vehicle->get_steering_angle();
-                    custom_steering_angle = cur * (1 - t) + (custom_steering_angle * t); // lerp
+                    custom_steering_angle = cur * (1 - t) + (custom_steering_angle * t);
                 }
                 game_actor->game_physics_vehicle->set_steering_angle(custom_steering_angle);
             }
@@ -242,8 +231,6 @@ namespace ets2la_plugin
 
     void CCore::update_plugin_state() const
     {
-        // "1.58.1" -> 15801
-        // It's easier to send an int than a string through shared mem.
         int version = 0;
         std::string version_str = VERSION;
         try {
@@ -262,19 +249,22 @@ namespace ets2la_plugin
 
     void CCore::tick() const
     {
-        // Local\ETS2LACameraProps
+        // Local\\ETS2LACameraProps
         this->get_camera_data();
 
-        // Local\ETS2LATraffic, Local\ETS2LASemaphore, Local\ETS2LAParkedVehicles
+        // Examiner camera control runs on the same native frame_end tick.
+        examiner_camera_bridge::tick();
+
+        // Local\\ETS2LATraffic, Local\\ETS2LASemaphore, Local\\ETS2LAParkedVehicles
         traffic_processor_->tick(this->truck_pos);
 
-        // Local\ETS2LARoute
+        // Local\\ETS2LARoute
         this->get_navigation_data();
 
-        // Local\ETS2LAPluginInput
+        // Local\\ETS2LAPluginInput
         this->override_inputs();
 
-        // Local\ETS2LAPluginStatus
+        // Local\\ETS2LAPluginStatus
         this->update_plugin_state();
     }
 
@@ -347,14 +337,12 @@ namespace ets2la_plugin
         this->info("Initializing {}", VERSION);
         this->info("Expected game version: {}", GAME_VERSION);
 
-        // parse GAME_VERSION from for example "1.55.x" to "1.55." (removing the "x" everywhere)
         auto game_version_parsed = fmt::to_string(GAME_VERSION);
         game_version_parsed.erase(std::remove(game_version_parsed.begin(), game_version_parsed.end(), 'x'), game_version_parsed.end());
 
-        // search for the parsed game version in the game name which is for example: "Euro Truck Simulator 2 1.55.1.0s"
         if (fmt::to_string(this->init_params_->common.game_name).find(game_version_parsed) == std::string::npos) {
             this->error("Detected unsupported game version: {}", fmt::to_string(this->init_params_->common.game_name));
-            return false; // game version not supported, dont load plugin
+            return false;
         } else {
             this->info("Detected matching game version: {}", fmt::to_string(this->init_params_->common.game_name));
         }
