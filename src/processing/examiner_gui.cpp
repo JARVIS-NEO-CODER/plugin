@@ -8,12 +8,24 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <atomic>
+#include <thread>
+#include <mutex>
 
 namespace examiner_gui { namespace {
 constexpr wchar_t kClassName[] = L"ETS2ExaminerOverlay";
 constexpr int kWidth = 460, kHeight = 620;
-HWND g_overlay = nullptr, g_game = nullptr;
-bool g_visible = false;
+constexpr UINT WM_EXAMINER_REFRESH = WM_APP + 10;
+constexpr UINT WM_EXAMINER_TOGGLE = WM_APP + 11;
+constexpr int kHotkeyId = 0x4554;
+
+std::atomic<HWND> g_overlay{nullptr};
+std::atomic<HWND> g_game{nullptr};
+std::atomic<DWORD> g_gui_thread_id{0};
+std::atomic<bool> g_visible{false};
+std::atomic<bool> g_stop{false};
+std::thread g_gui_thread;
+std::mutex g_players_mutex;
 int g_selected_player = -1;
 ULONGLONG g_last_toggle = 0;
 
@@ -21,12 +33,14 @@ struct PlayerEntry { int id; std::uintptr_t vehicle; std::wstring name; };
 std::vector<PlayerEntry> g_players;
 
 void position_overlay() {
-    if (!g_overlay || !g_game || !IsWindow(g_game)) return;
+    HWND overlay = g_overlay.load();
+    HWND game = g_game.load();
+    if (!overlay || !game || !IsWindow(overlay) || !IsWindow(game)) return;
     RECT r{};
-    if (!GetClientRect(g_game, &r)) return;
+    if (!GetClientRect(game, &r)) return;
     POINT p{r.left, r.top};
-    ClientToScreen(g_game, &p);
-    SetWindowPos(g_overlay, HWND_TOPMOST, p.x, p.y,
+    ClientToScreen(game, &p);
+    SetWindowPos(overlay, HWND_TOPMOST, p.x, p.y,
                  r.right - r.left, r.bottom - r.top,
                  SWP_NOACTIVATE | SWP_SHOWWINDOW);
 }
@@ -63,19 +77,23 @@ void refresh_players() {
         e.name = L"Joueur " + std::to_wstring(e.id + 1);
         fresh.push_back(std::move(e));
     }
+    std::lock_guard<std::mutex> lock(g_players_mutex);
     g_players.swap(fresh);
 }
 
 void select_entry(int index) {
-    if (index < 0 || index >= (int)g_players.size()) return;
-    g_selected_player = g_players[index].id;
-    ets2la_plugin::examiner_camera_bridge::set_player_vehicle(g_players[index].vehicle);
-    InvalidateRect(g_overlay, nullptr, FALSE);
-}
-
-void set_mode(ets2la_plugin::examiner_camera_bridge::camera_mode mode) {
-    ets2la_plugin::examiner_camera_bridge::set_camera_mode(mode);
-    InvalidateRect(g_overlay, nullptr, FALSE);
+    std::uintptr_t vehicle = 0;
+    int id = -1;
+    {
+        std::lock_guard<std::mutex> lock(g_players_mutex);
+        if (index < 0 || index >= (int)g_players.size()) return;
+        id = g_players[index].id;
+        vehicle = g_players[index].vehicle;
+    }
+    g_selected_player = id;
+    ets2la_plugin::examiner_camera_bridge::set_player_vehicle(vehicle);
+    HWND overlay = g_overlay.load();
+    if (overlay) InvalidateRect(overlay, nullptr, FALSE);
 }
 
 const wchar_t* mode_name(ets2la_plugin::examiner_camera_bridge::camera_mode mode) {
@@ -87,6 +105,23 @@ const wchar_t* mode_name(ets2la_plugin::examiner_camera_bridge::camera_mode mode
         case M::overhead: return L"4  Dessus";
     }
     return L"";
+}
+
+void toggle_on_gui_thread() {
+    HWND overlay = g_overlay.load();
+    if (!overlay) return;
+    bool next = !g_visible.load();
+    g_visible.store(next);
+    if (next) {
+        HWND foreground = GetForegroundWindow();
+        if (foreground && foreground != overlay) g_game.store(foreground);
+        refresh_players();
+        position_overlay();
+        ShowWindow(overlay, SW_SHOWNOACTIVATE);
+        InvalidateRect(overlay, nullptr, FALSE);
+    } else {
+        ShowWindow(overlay, SW_HIDE);
+    }
 }
 
 LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
@@ -102,14 +137,17 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         draw_text(dc, 24, 20, L"EXAMINATEUR", 26);
         draw_text(dc, 24, 58, L"Sélectionner un joueur Convoy", 17);
         int y = 105;
-        if (g_players.empty()) {
-            draw_text(dc, 24, y, L"Aucun joueur détecté", 17);
-            y += 38;
-        } else {
-            for (size_t i = 0; i < g_players.size(); ++i) {
-                RECT row{20, y, 440, y + 44};
-                draw_button(dc, row, g_players[i].name, g_players[i].id == g_selected_player);
-                y += 52;
+        {
+            std::lock_guard<std::mutex> lock(g_players_mutex);
+            if (g_players.empty()) {
+                draw_text(dc, 24, y, L"Aucun joueur détecté", 17);
+                y += 38;
+            } else {
+                for (size_t i = 0; i < g_players.size(); ++i) {
+                    RECT row{20, y, 440, y + 44};
+                    draw_button(dc, row, g_players[i].name, g_players[i].id == g_selected_player);
+                    y += 52;
+                }
             }
         }
         y += 12;
@@ -130,25 +168,40 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     }
     case WM_LBUTTONDOWN: {
         int y = (int)(short)HIWORD(lp);
-        int pc = (int)g_players.size();
-        if (y >= 105 && pc > 0 && y < 105 + pc * 52) {
-            select_entry((y - 105) / 52);
-            return 0;
+        int index = -1;
+        {
+            std::lock_guard<std::mutex> lock(g_players_mutex);
+            int pc = (int)g_players.size();
+            if (y >= 105 && pc > 0 && y < 105 + pc * 52)
+                index = (y - 105) / 52;
         }
+        if (index >= 0) select_entry(index);
         return 0;
     }
     case WM_KEYDOWN:
-        if (wp == VK_ESCAPE) { toggle(); return 0; }
+        if (wp == VK_ESCAPE) {
+            toggle_on_gui_thread();
+            return 0;
+        }
         break;
+    case WM_EXAMINER_TOGGLE:
+        toggle_on_gui_thread();
+        return 0;
+    case WM_EXAMINER_REFRESH:
+        if (g_visible.load()) {
+            position_overlay();
+            InvalidateRect(hwnd, nullptr, FALSE);
+        }
+        return 0;
     case WM_DESTROY:
-        g_overlay = nullptr;
+        g_overlay.store(nullptr);
         return 0;
     }
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
 
-bool create_overlay() {
-    if (g_overlay) return true;
+void gui_thread_main() {
+    g_gui_thread_id.store(GetCurrentThreadId());
     HINSTANCE instance = GetModuleHandleW(nullptr);
     WNDCLASSW wc{};
     wc.lpfnWndProc = wnd_proc;
@@ -157,64 +210,94 @@ bool create_overlay() {
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
     wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
     RegisterClassW(&wc);
-    g_overlay = CreateWindowExW(
+
+    HWND overlay = CreateWindowExW(
         WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
         kClassName, L"ETS2 Examiner", WS_POPUP,
         40, 40, kWidth, kHeight, nullptr, nullptr, instance, nullptr);
-    return g_overlay != nullptr;
+    if (!overlay) {
+        g_gui_thread_id.store(0);
+        return;
+    }
+    g_overlay.store(overlay);
+
+    // The GUI thread owns the Win32 message loop and the F8 hotkey.
+    // This avoids depending on the SCS telemetry callback for Windows input.
+    RegisterHotKey(nullptr, kHotkeyId, 0, VK_F8);
+
+    MSG msg{};
+    while (!g_stop.load()) {
+        BOOL result = GetMessageW(&msg, nullptr, 0, 0);
+        if (result <= 0) break;
+        if (msg.message == WM_HOTKEY && msg.wParam == kHotkeyId) {
+            toggle_on_gui_thread();
+            continue;
+        }
+        TranslateMessage(&msg);
+        DispatchMessageW(&msg);
+    }
+
+    UnregisterHotKey(nullptr, kHotkeyId);
+    if (g_overlay.load()) DestroyWindow(g_overlay.load());
+    g_overlay.store(nullptr);
+    g_gui_thread_id.store(0);
 }
 }
 
 bool init() {
-    if (g_overlay) return true;
-    g_game = GetForegroundWindow();
-    return create_overlay();
+    if (g_gui_thread.joinable()) return g_overlay.load() != nullptr;
+    g_stop.store(false);
+    g_visible.store(false);
+    g_gui_thread = std::thread(gui_thread_main);
+    for (int i = 0; i < 100 && !g_overlay.load() && !g_stop.load(); ++i)
+        Sleep(10);
+    return g_overlay.load() != nullptr;
 }
 
 void shutdown() {
+    g_stop.store(true);
+    DWORD tid = g_gui_thread_id.load();
+    if (tid) PostThreadMessageW(tid, WM_QUIT, 0, 0);
+    if (g_gui_thread.joinable()) g_gui_thread.join();
     ets2la_plugin::examiner_camera_bridge::clear_player_vehicle();
-    if (g_overlay) DestroyWindow(g_overlay);
-    g_overlay = nullptr;
-    g_game = nullptr;
-    g_visible = false;
+    g_game.store(nullptr);
+    g_visible.store(false);
+    std::lock_guard<std::mutex> lock(g_players_mutex);
     g_players.clear();
     g_selected_player = -1;
 }
 
 void tick() {
-    if (!g_overlay) create_overlay();
-    if (!g_game || !IsWindow(g_game)) g_game = GetForegroundWindow();
-    if (GetAsyncKeyState(VK_F8) & 0x8000) {
-        ULONGLONG now = GetTickCount64();
-        if (now - g_last_toggle > 300) {
-            g_last_toggle = now;
-            toggle();
-        }
-    }
-    if (g_visible) {
+    HWND overlay = g_overlay.load();
+    if (!overlay) return;
+    if (g_visible.load()) {
+        // Telemetry thread updates player data; Win32 painting/input stays on GUI thread.
         refresh_players();
-        position_overlay();
-        ShowWindow(g_overlay, SW_SHOWNOACTIVATE);
+        DWORD tid = g_gui_thread_id.load();
+        if (tid) PostThreadMessageW(tid, WM_EXAMINER_REFRESH, 0, 0);
     }
 }
 
 void toggle() {
-    if (!g_overlay && !init()) return;
-    g_visible = !g_visible;
-    if (g_visible) {
-        refresh_players();
-        position_overlay();
-        ShowWindow(g_overlay, SW_SHOWNOACTIVATE);
-        InvalidateRect(g_overlay, nullptr, FALSE);
-    } else {
-        ShowWindow(g_overlay, SW_HIDE);
+    HWND overlay = g_overlay.load();
+    if (!overlay) return;
+    DWORD tid = g_gui_thread_id.load();
+    if (tid == GetCurrentThreadId()) {
+        toggle_on_gui_thread();
+    } else if (tid) {
+        PostThreadMessageW(tid, WM_EXAMINER_TOGGLE, 0, 0);
     }
 }
 
-bool is_visible() { return g_visible; }
+bool is_visible() { return g_visible.load(); }
 void select_player(int id) {
-    for (size_t i = 0; i < g_players.size(); ++i)
-        if (g_players[i].id == id) { select_entry((int)i); return; }
+    int index = -1;
+    {
+        std::lock_guard<std::mutex> lock(g_players_mutex);
+        for (size_t i = 0; i < g_players.size(); ++i)
+            if (g_players[i].id == id) { index = (int)i; break; }
+    }
+    if (index >= 0) select_entry(index);
 }
 int selected() { return g_selected_player; }
 
